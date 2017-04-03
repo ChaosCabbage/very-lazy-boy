@@ -8,6 +8,9 @@ I started off by looking at this:
 https://github.com/trez/LazyNES
 
 First, I decided that the whole CPU monad thing was very complicated, and tried to do it by simply passing the CPU object everywhere.
-As I learn more, I've been realising that this is exactly what the monad abstracts, and I'll probably do the same thing.
+As I learn more, I've been realising that this is exactly what the monad abstracts.
+I tried `Reader (CPUEnvironment s) (ST s a)` but it seems difficult to make it work. The compiler complains that the two "s" types might be different. Manually writing the monad seems to be the way to go.
 
-**Current status:** I'd say 0.01%
+I've been trying to avoid "do" notation as much as I can. I'd rather figure out the binding functions. It seems easier to figure out what's really going on that way.
+
+**Current status:** I'd say 0.02% complete.
