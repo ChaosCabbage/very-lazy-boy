@@ -1,14 +1,19 @@
 module CPU
     ( 
         CPU,
+        runCPU,
         initCPU,
-        execute
+        execute,
+
+        -- Just for testing:
+        readPC
     ) where
 
 import Control.Monad.ST as ST
 import Control.Monad.Reader
 import Data.Word
 import Data.STRef
+import Data.Array
 import Data.Array.ST
 import Data.Bits
 
@@ -49,9 +54,9 @@ instance Functor (CPU s) where
     fmap f m = 
         m >>= return . f
 
-initCPU :: CPU s (CPUEnvironment s)
-initCPU = CPU $ \_ -> do
-    rom <- newArray (0x00, 0x3FFF) 0x00
+initCPU :: Array Address Word8 -> ST s (CPUEnvironment s)
+initCPU rom = do
+    rom <- thaw rom
     pc <- newSTRef 0x100 
     return CPUEnvironment { pc = pc, rom = rom }
 
@@ -80,7 +85,7 @@ to16 = fromIntegral
 joinBytes :: Word8 -> Word8 -> Word16
 joinBytes low high = 
     let low16 = to16 low;
-        high16 = to16 (shiftL high 8)
+        high16 = shiftL (to16 high) 8
     in
         high16 + low16
 
