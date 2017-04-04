@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     CPU
+                     , Rom
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl
@@ -33,9 +34,11 @@ executable cpu-state-machine-exe
 test-suite cpu-state-machine-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             Spec.hs
+  main-is:             CPU_test.hs
+  other-modules:       CPUTestrunner
   build-depends:       base
                      , cpu-state-machine
+                     , array
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

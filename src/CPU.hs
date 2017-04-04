@@ -3,11 +3,13 @@ module CPU
         CPU,
         runCPU,
         initCPU,
-        execute,
+        step,
 
         -- Just for testing:
         readPC
     ) where
+
+import Rom
 
 import Control.Monad.ST as ST
 import Control.Monad.Reader
@@ -35,16 +37,16 @@ data CPUEnvironment s = CPUEnvironment {
 }
 
 -- CPU computations are 
---  functions from a shared stateful environment into state transformers.
+-- functions from a shared stateful environment into state transformers.
 newtype CPU s a = CPU { runCPU :: (CPUEnvironment s) -> ST s a }
 
 instance Monad (CPU s) where
     return x = 
         CPU $ \_ -> return x
     m >>= f = 
-        CPU $ \cpu -> do            -- This is now the (ST s a) monad
+        CPU $ \cpu -> do            -- This is now inside the (ST s a) monad.
             current <- runCPU m cpu -- Get the current answer of the ST.
-            runCPU (f current) cpu  -- apply the answer to f. Compose the results.        
+            runCPU (f current) cpu  -- Apply the answer to f. Compose the results.        
 
 instance Applicative (CPU s) where
     pure = return
@@ -54,7 +56,7 @@ instance Functor (CPU s) where
     fmap f m = 
         m >>= return . f
 
-initCPU :: Array Address Word8 -> ST s (CPUEnvironment s)
+initCPU :: Rom -> ST s (CPUEnvironment s)
 initCPU rom = do
     rom <- thaw rom
     pc <- newSTRef 0x100 
@@ -96,6 +98,9 @@ fetch16 :: CPU s Word16
 fetch16 = fetch `joinBytesM` fetch
 
 type Cycles = Int
+
+step :: CPU s Cycles
+step = fetch >>= execute
 
 execute :: Opcode -> CPU s Cycles
 execute 0x00 = nop
