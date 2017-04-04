@@ -30,6 +30,6 @@ nSteps n = nSteps' n 0
 
 test :: CPU s String
 test = do
-    cycles <- runNSteps 2
+    cycles <- nSteps 2
     pc <- readPC
     return $ "Total cycles: " ++ (show cycles) ++ ", PC = " ++ (show pc)
