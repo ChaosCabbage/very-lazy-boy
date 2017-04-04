@@ -35,6 +35,15 @@ type STRegister16 s = STRef s Register16
 -- The whole state of the CPU and all the memory.
 -- Mutable, for use in the ST monad.
 data CPUEnvironment s = CPUEnvironment {
+--    a :: STRef s Register8
+--  , f :: STRef s Register8
+--  , b :: STRef s Register8
+--  , c :: STRef s Register8
+--  , d :: STRef s Register8
+--  , e :: STRef s Register8
+--  , h :: STRef s Register8
+--  , l :: STRef s Register8
+--  , sp :: STRef s Register16
     pc :: STRef s Register16
   , rom :: STMemory s  
 }
@@ -62,7 +71,7 @@ instance Functor (CPU s) where
 initCPU :: Rom -> ST s (CPUEnvironment s)
 initCPU rom = do
     rom <- thaw rom
-    pc <- newSTRef 0x100 
+    pc <- newSTRef 0x100
     return CPUEnvironment { pc = pc, rom = rom }
 
 readPC :: CPU s Word16
@@ -110,6 +119,7 @@ step = fetch >>= execute
 execute :: Opcode -> CPU s Cycles
 execute 0x00 = nop
 execute 0xC3 = fetch16 >>= jp
+-- execute 0xAF = set A to zero
 execute x = error $ "Unknown opcode 0x" ++ (map toUpper (showHex x ""))
 
 nop :: CPU s Cycles
