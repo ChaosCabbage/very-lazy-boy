@@ -3,13 +3,16 @@ module Main where
 import CPU
 import Rom
 import CPUTestrunner
+import Cartridge
 
 import Data.Ix
 import Data.Word
 import Data.Array
 
 main :: IO ()
-main = putStrLn $ runCPUTest test tetris
+main = do
+    rom <- romFromFile
+    putStrLn $ runCPUTest test rom 
 
 tetris :: Array Word16 Word8
 tetris = array (0x00, 0x3FFF) $
@@ -30,6 +33,6 @@ nSteps n = nSteps' n 0
 
 test :: CPU s String
 test = do
-    cycles <- nSteps 2
+    cycles <- nSteps 4
     pc <- readPC
     return $ "Total cycles: " ++ (show cycles) ++ ", PC = " ++ (show pc)

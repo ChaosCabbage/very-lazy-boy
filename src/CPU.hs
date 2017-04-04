@@ -18,6 +18,9 @@ import Data.STRef
 import Data.Array
 import Data.Array.ST
 import Data.Bits
+import Data.Char
+
+import Numeric (showHex)
 
 type Register8 = Word8
 type Register16 = Word16
@@ -97,6 +100,8 @@ joinBytesM = liftM2 joinBytes
 fetch16 :: CPU s Word16
 fetch16 = fetch `joinBytesM` fetch
 
+-- Move this into a separate file, when you can be bothered, please:
+
 type Cycles = Int
 
 step :: CPU s Cycles
@@ -105,7 +110,7 @@ step = fetch >>= execute
 execute :: Opcode -> CPU s Cycles
 execute 0x00 = nop
 execute 0xC3 = fetch16 >>= jp
-execute _ = error "Unknown opcode"
+execute x = error $ "Unknown opcode 0x" ++ (map toUpper (showHex x ""))
 
 nop :: CPU s Cycles
 nop = return 4
