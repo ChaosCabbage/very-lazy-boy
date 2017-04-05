@@ -18,6 +18,10 @@ library
   exposed-modules:     CPU
                      , Rom
                      , Cartridge
+                     , CPU.Types
+                     , CPU.Environment
+                     , CPU.Instructions
+  other-modules:       BitTwiddling      
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl

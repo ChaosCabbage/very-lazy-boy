@@ -1,6 +1,7 @@
 module Main where
 
 import CPU
+import CPU.Instructions
 import Rom
 import CPUTestrunner
 import Cartridge
