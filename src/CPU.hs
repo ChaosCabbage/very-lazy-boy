@@ -6,8 +6,10 @@ module CPU
         fetch,
         fetch16,
 
-        readPC,
-        writePC
+        readReg,
+        writeReg,
+        readComboReg,
+        writeComboReg
 
     ) where
 
@@ -43,35 +45,35 @@ instance Functor (CPU s) where
     fmap f m = 
         m >>= return . f
 
-initCPU :: Rom -> ST s (CPUEnvironment s)
-initCPU rom = do
-    rom <- thaw rom
-    pc <- newSTRef 0x100
-    return CPUEnvironment { pc = pc, rom = rom }
-
-
-readReg :: (CPUEnvironment s -> STRef s r) -> CPU s r
+readReg :: CPURegister s r -> CPU s r
 readReg reg = CPU $ \cpu -> readSTRef (reg cpu)
 
-writeReg :: (CPUEnvironment s -> STRef s w) -> w -> CPU s ()
+writeReg :: CPURegister s w -> w -> CPU s ()
 writeReg reg w = CPU $ \cpu -> writeSTRef (reg cpu) w
 
-readPC :: CPU s Word16
-readPC = readReg pc
+readComboReg :: ComboRegister -> CPU s Word16
+readComboReg reg = do
+    let (low, high) = registerPair reg
+    (readReg low) `joinBytesM` (readReg high)
 
-writePC :: Word16 -> CPU s ()
-writePC = writeReg pc
+writeComboReg :: ComboRegister -> Word16 -> CPU s ()
+writeComboReg reg w = do
+    let (lowReg, highReg) = registerPair reg
+    let (lowByte, highByte) = toBytes w
+    writeReg lowReg lowByte
+    writeReg highReg highByte
 
-incrementPC :: CPU s ()
-incrementPC = readPC >>= (writePC . succ)
 
 readMem :: Address -> CPU s Word8
 readMem addr = CPU $ \cpu -> 
     readArray (rom cpu) addr
 
+incrementPC :: CPU s ()
+incrementPC = (readReg pc) >>= (writeReg pc) . succ
+
 fetch :: CPU s Opcode
 fetch = do
-    addr <- readPC
+    addr <- readReg pc
     incrementPC 
     readMem addr
 

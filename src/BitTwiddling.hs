@@ -1,5 +1,8 @@
 module BitTwiddling (
     joinBytesM
+  , to16
+  , to8
+  , toBytes
     ) where
 
 import Data.Word
@@ -8,6 +11,12 @@ import Control.Monad
 
 to16 :: Word8 -> Word16
 to16 = fromIntegral 
+
+to8 :: Word16 -> Word8
+to8 = fromIntegral
+
+toBytes :: Word16 -> (Word8, Word8)
+toBytes w = (to8 w, to8 $ shiftR w 8)
 
 joinBytes :: Word8 -> Word8 -> Word16
 joinBytes low high = 

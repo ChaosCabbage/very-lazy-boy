@@ -21,7 +21,8 @@ library
                      , CPU.Types
                      , CPU.Environment
                      , CPU.Instructions
-  other-modules:       BitTwiddling      
+  other-modules:       BitTwiddling
+                     , ShowHex
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl

@@ -2,6 +2,7 @@ module Main where
 
 import CPU
 import CPU.Instructions
+import CPU.Environment
 import Rom
 import CPUTestrunner
 import Cartridge
@@ -34,6 +35,9 @@ nSteps n = nSteps' n 0
 
 test :: CPU s String
 test = do
-    cycles <- nSteps 4
-    pc <- readPC
-    return $ "Total cycles: " ++ (show cycles) ++ ", PC = " ++ (show pc)
+    cycles <- nSteps 100
+    a <- readReg a
+    pc <- readReg pc
+    return $ "Total cycles: " ++ (show cycles) ++ 
+             ", A = " ++ (show a) ++
+             ", PC = " ++ (show pc)
