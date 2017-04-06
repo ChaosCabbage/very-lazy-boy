@@ -1,15 +1,21 @@
 module CPU
     ( 
-        CPU,
-        runCPU,
-        initCPU,
-        fetch,
-        fetch16,
+        CPU
+      , runCPU
+      , initCPU
+      , fetch
+      , fetch16
 
-        readReg,
-        writeReg,
-        readComboReg,
-        writeComboReg
+      , readReg
+      , writeReg
+      , readComboReg
+      , writeComboReg
+      , readMemory
+      , writeMemory
+
+      , Flag(..)
+      , readFlag
+      , setFlag
 
     ) where
 
@@ -17,12 +23,14 @@ import Rom
 import CPU.Types
 import CPU.Environment
 import BitTwiddling
+import ShowHex
 
 import Control.Monad.ST as ST
 import Data.STRef
 import Data.Array.ST
 import Control.Monad.Reader
 import Data.Word
+import qualified Data.Bits as Bit
 
 -- CPU computations are 
 -- functions from a shared stateful environment into state transformers.
@@ -63,10 +71,36 @@ writeComboReg reg w = do
     writeReg lowReg lowByte
     writeReg highReg highByte
 
+-- The memory map is divided into different banks. 
+-- Get the bank that this address points to.
+-- Some banks are switchable - these are not yet dealt with.
+memoryBank :: Address -> MemoryBank s
+memoryBank addr
+    | addr < 0x0000 = error $ "Memory access out of bounds: " ++ (showHex addr)
+    | addr < 0x4000 = rom00   -- 16KB Fixed cartridge rom bank.
+    | addr < 0x8000 = rom01   -- 16KB Switchable cartridge rom bank.
+    | addr < 0xA000 = vram    -- 8KB Video RAM.
+    | addr < 0xC000 = extram  -- 8KB Switchable RAM in cartridge.
+    | addr < 0xD000 = wram0   -- 4KB Work RAM.
+    | addr < 0xE000 = wram1   -- 4KB Work RAM.
+    | addr < 0xFE00 = error $ "Memory access at " ++ (showHex addr) ++ ". " ++
+                              "This is an 'echo' address. Not implemented yet :("
+    | addr < 0xFEA0 = oam     -- Sprite Attribute Table
+    | addr < 0xFF00 = error $ "Memory access at unusable address: " ++ (showHex addr)
+    | addr < 0xFF80 = ioports -- IO ports
+    | addr < 0xFFFF = hram    -- 127 byte High RAM
+    | addr == 0xFFFF = iereg  -- Interrupt Enable register.
 
-readMem :: Address -> CPU s Word8
-readMem addr = CPU $ \cpu -> 
-    readArray (rom cpu) addr
+
+readMemory :: Address -> CPU s Word8
+readMemory addr = CPU $ \cpu -> 
+    let array = memoryBank addr cpu
+    in readArray array addr
+
+writeMemory :: Address -> Word8 -> CPU s ()
+writeMemory addr byte = CPU $ \cpu -> 
+    let array = memoryBank addr cpu
+    in writeArray array addr byte
 
 incrementPC :: CPU s ()
 incrementPC = (readReg pc) >>= (writeReg pc) . succ
@@ -75,7 +109,27 @@ fetch :: CPU s Opcode
 fetch = do
     addr <- readReg pc
     incrementPC 
-    readMem addr
+    readMemory addr
 
 fetch16 :: CPU s Word16
 fetch16 = fetch `joinBytesM` fetch
+
+data Flag = Z | N | H | C
+
+flagBit :: Flag -> Int
+flagBit f = case f of
+    Z -> 7
+    N -> 6
+    H -> 5
+    C -> 4
+
+readFlag :: Flag -> CPU s Bool
+readFlag flag = do
+    flags <- readReg f
+    return $ Bit.testBit flags $ flagBit flag
+
+setFlag :: Flag -> Bool -> CPU s ()
+setFlag flag b = do
+    flags <- readReg f
+    let newFlags = Bit.setBit flags $ flagBit flag
+    writeReg f newFlags

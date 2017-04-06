@@ -3,6 +3,7 @@ module BitTwiddling (
   , to16
   , to8
   , toBytes
+  , asTwosComplement
     ) where
 
 import Data.Word
@@ -14,6 +15,9 @@ to16 = fromIntegral
 
 to8 :: Word16 -> Word8
 to8 = fromIntegral
+
+asTwosComplement :: Word8 -> Int8
+-- Implement me please!
 
 toBytes :: Word16 -> (Word8, Word8)
 toBytes w = (to8 w, to8 $ shiftR w 8)
@@ -27,3 +31,4 @@ joinBytes low high =
 
 joinBytesM :: (Monad m) => m Word8 -> m Word8 -> m Word16
 joinBytesM = liftM2 joinBytes
+
