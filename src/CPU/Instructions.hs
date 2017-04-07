@@ -83,9 +83,16 @@ jp addr =
     return 16
 
 -- XOR: Exclusive-or the contents of A with the argument.
+-- Sets flags: Z 0 0 0
 xor :: Word8 -> CPU s Cycles
 xor byte = 
     modifyReg a (Bit.xor byte) >>
+    -- Set the flags.
+    -- This needs to be abstracted into a function.
+    fmap (==0) (readReg a) >>= setFlag Z >>
+    setFlag N False >>
+    setFlag H False >>
+    setFlag C False >>
     return 4
 
 -- LD: Load bytes into a destination.
@@ -95,9 +102,13 @@ ld = id
 -- DEC: Decrease a register or memory location by 1
 -- Currently just the 8-bit registers.
 -- Need to rethink this when I get to the others.
+-- Flags: Z 1 H -
 dec :: CPURegister s Word8 -> CPU s Cycles
 dec reg = 
     modifyReg reg (subtract 1) >>
+    fmap (==0) (readReg a) >>= setFlag Z >>
+    setFlag N True >>
+    setFlag H False >> -- half-carry is complicated, gonna ignore it
     return 4
 
 -- JR: Relative conditional jump
