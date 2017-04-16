@@ -108,7 +108,7 @@ dec reg =
     modifyReg reg (subtract 1) >>
     fmap (==0) (readReg a) >>= setFlag Z >>
     setFlag N True >>
-    setFlag H False >> -- half-carry is complicated, gonna ignore it
+    setFlag H False >> -- half-carry is complicated, gonna ignore it right now
     return 4
 
 -- JR: Relative conditional jump

@@ -16,10 +16,6 @@ module CPU
       , writeMemory
       , modifyMemory
 
-      , Flag(..)
-      , readFlag
-      , setFlag
-
     ) where
 
 import Rom
@@ -133,26 +129,3 @@ fetch = do
 
 fetch16 :: CPU s Word16
 fetch16 = fetch `joinBytesM` fetch
-
-
--- The f register also acts as the flags.
-
-data Flag = Z | N | H | C
-
-flagBit :: Flag -> Int
-flagBit f = case f of
-    Z -> 7
-    N -> 6
-    H -> 5
-    C -> 4
-
-readFlag :: Flag -> CPU s Bool
-readFlag flag = do
-    flags <- readReg f
-    return $ Bit.testBit flags $ flagBit flag
-
-setFlag :: Flag -> Bool -> CPU s ()
-setFlag flag b = do
-    flags <- readReg f
-    let newFlags = Bit.setBit flags $ flagBit flag
-    writeReg f newFlags
