@@ -6,6 +6,7 @@ module CPU.Instructions (
 import BitTwiddling
 import CPU.Types
 import CPU.Environment
+import CPU.Flags
 import CPU
 import ShowHex
 
@@ -85,14 +86,11 @@ jp addr =
 -- XOR: Exclusive-or the contents of A with the argument.
 -- Sets flags: Z 0 0 0
 xor :: Word8 -> CPU s Cycles
-xor byte = 
-    modifyReg a (Bit.xor byte) >>
+xor byte = do
+    modifyReg a (Bit.xor byte) 
     -- Set the flags.
-    -- This needs to be abstracted into a function.
-    fmap (==0) (readReg a) >>= setFlag Z >>
-    setFlag N False >>
-    setFlag H False >>
-    setFlag C False >>
+    a <- readReg a
+    setFlags (As (a == 0), Off, Off, Off)
     return 4
 
 -- LD: Load bytes into a destination.
@@ -104,11 +102,10 @@ ld = id
 -- Need to rethink this when I get to the others.
 -- Flags: Z 1 H -
 dec :: CPURegister s Word8 -> CPU s Cycles
-dec reg = 
-    modifyReg reg (subtract 1) >>
-    fmap (==0) (readReg a) >>= setFlag Z >>
-    setFlag N True >>
-    setFlag H False >> -- half-carry is complicated, gonna ignore it right now
+dec reg = do
+    modifyReg reg (subtract 1)
+    v <- readReg reg
+    setFlags (As (v == 0), On, Off, NA) -- half-carry is complicated, gonna ignore it right now
     return 4
 
 -- JR: Relative conditional jump

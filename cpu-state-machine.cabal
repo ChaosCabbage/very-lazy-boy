@@ -21,6 +21,8 @@ library
                      , CPU.Types
                      , CPU.Environment
                      , CPU.Instructions
+                     , CPU.Flags
+                     , CPU.Arithmetic
   other-modules:       BitTwiddling
                      , ShowHex
   build-depends:       base >= 4.7 && < 5
