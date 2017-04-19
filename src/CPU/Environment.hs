@@ -4,6 +4,8 @@ module CPU.Environment (
   , MemoryBank
   , CPURegister
   , initCPU
+  , resumeCPU
+  , pauseCPU
   , registerPair
     ) where
     
@@ -68,8 +70,8 @@ resumeCPU state = do
     e  <- newSTRef $ frz_e state
     h  <- newSTRef $ frz_h state
     l  <- newSTRef $ frz_l state
-    sp <- newSTRef 0x00
-    pc <- newSTRef 0x100
+    sp <- newSTRef $ frz_sp state
+    pc <- newSTRef $ frz_pc state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
       , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
@@ -77,8 +79,36 @@ resumeCPU state = do
       , iereg = iereg
     }
 
---freezeCPU :: CPUEnvironment s -> ST s FrozenCPUEnvironment
---freezeCPU cpu = 
+pauseCPU :: CPUEnvironment s -> ST s FrozenCPUEnvironment
+pauseCPU cpu = do
+    f_rom00   <- freeze $ rom00 cpu
+    f_rom01   <- freeze $ rom01 cpu
+    f_vram    <- freeze $ vram cpu
+    f_extram  <- freeze $ extram cpu
+    f_wram0   <- freeze $ wram0 cpu
+    f_wram1   <- freeze $ wram1 cpu
+    f_oam     <- freeze $ oam cpu
+    f_ioports <- freeze $ ioports cpu
+    f_hram    <- freeze $ hram cpu
+    f_iereg   <- freeze $ iereg cpu
+    f_a  <- readSTRef $ a cpu
+    f_f  <- readSTRef $ f cpu
+    f_b  <- readSTRef $ b cpu
+    f_c  <- readSTRef $ c cpu
+    f_d  <- readSTRef $ d cpu
+    f_e  <- readSTRef $ e cpu
+    f_h  <- readSTRef $ h cpu
+    f_l  <- readSTRef $ l cpu
+    f_sp <- readSTRef $ sp cpu
+    f_pc <- readSTRef $ pc cpu
+    return FrozenCPUEnvironment { 
+        frz_a = f_a, frz_f = f_f, frz_b = f_b, frz_c = f_c
+      , frz_d = f_d, frz_e = f_e, frz_h = f_h, frz_l = f_l
+      , frz_sp = f_sp, frz_pc = f_pc 
+      , frz_rom00 = f_rom00, frz_rom01 = f_rom01, frz_vram = f_vram, frz_extram = f_extram
+      , frz_wram0 = f_wram0, frz_wram1 = f_wram1, frz_oam = f_oam, frz_ioports = f_ioports, frz_hram = f_hram
+      , frz_iereg = f_iereg
+    }
 
 -- Each pair of 8-bit registers can be accessed 
 -- as a single 16-bit register.

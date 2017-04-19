@@ -18,11 +18,12 @@ library
   exposed-modules:     CPU
                      , Cartridge
                      , CPU.Types
+                     , CPU.FrozenEnvironment
                      , CPU.Environment
                      , CPU.Instructions
+                     , CPURunner
   other-modules:       BitTwiddling
                      , ShowHex
-                     , CPU.FrozenEnvironment
                      , CPU.Flags
                      , CPU.Arithmetic
   build-depends:       base >= 4.7 && < 5
@@ -44,7 +45,7 @@ test-suite cpu-state-machine-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             CPU_test.hs
-  other-modules:       CPUTestrunner
+  other-modules:       
   build-depends:       base
                      , cpu-state-machine
                      , array

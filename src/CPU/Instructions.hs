@@ -14,9 +14,6 @@ import ShowHex
 import qualified Data.Bits as Bit
 import Data.Word
 
-
-type Cycles = Int
-
 step :: CPU s Cycles
 step = fetch >>= execute
 

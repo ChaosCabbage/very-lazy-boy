@@ -3,7 +3,7 @@ module Main where
 import CPU
 import CPU.Instructions
 import CPU.Environment
-import CPUTestrunner
+import CPURunner
 import Cartridge
 
 import Data.Ix

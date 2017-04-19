@@ -34,7 +34,7 @@ data FrozenCPUEnvironment = FrozenCPUEnvironment {
   , frz_ioports :: Array Address Word8
   , frz_hram :: Array Address Word8
   , frz_iereg :: Array Address Word8
-}
+} deriving (Show)
 
 defaultCPU :: FrozenCPUEnvironment
 defaultCPU = FrozenCPUEnvironment {
@@ -58,4 +58,4 @@ defaultCPU = FrozenCPUEnvironment {
   , frz_l  = 0x00
   , frz_sp = 0x00
   , frz_pc = 0x100
-}
+} 

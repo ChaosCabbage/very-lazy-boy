@@ -16,6 +16,8 @@ module CPU
       , writeMemory
       , modifyMemory
 
+      , extractEnvironment
+
     ) where
 
 import CPU.Types
@@ -50,6 +52,9 @@ instance Applicative (CPU s) where
 instance Functor (CPU s) where
     fmap f m = 
         m >>= return . f
+
+extractEnvironment :: CPU s (CPUEnvironment s)
+extractEnvironment = CPU $ \cpu -> return cpu
 
 readReg :: CPURegister s r -> CPU s r
 readReg reg = CPU $ \cpu -> readSTRef (reg cpu)
@@ -87,7 +92,6 @@ modifyComboReg reg f =
 -- Some banks are switchable - these are not yet dealt with.
 memoryBank :: Address -> MemoryBank s
 memoryBank addr
-    | addr < 0x0000 = error $ "Memory access out of bounds: " ++ (showHex addr)
     | addr < 0x4000 = rom00   -- 16KB Fixed cartridge rom bank.
     | addr < 0x8000 = rom01   -- 16KB Switchable cartridge rom bank.
     | addr < 0xA000 = vram    -- 8KB Video RAM.
