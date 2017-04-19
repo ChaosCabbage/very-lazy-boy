@@ -70,8 +70,8 @@ resumeCPU state = do
     e  <- newSTRef $ frz_e state
     h  <- newSTRef $ frz_h state
     l  <- newSTRef $ frz_l state
-    sp <- newSTRef 0x00
-    pc <- newSTRef 0x100
+    sp <- newSTRef $ frz_sp state
+    pc <- newSTRef $ frz_pc state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
       , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
