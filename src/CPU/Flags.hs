@@ -27,10 +27,11 @@ readFlag flag = do
     return $ testBit flags $ flagBit flag
 
 setFlag :: Flag -> Bool -> CPU s ()
-setFlag flag b = do
-    flags <- readReg f
-    let newFlags = setBit flags $ flagBit flag
-    writeReg f newFlags
+setFlag flag b = 
+    modifyReg f changeBit
+    where 
+        changeBit w = op w $ flagBit flag 
+        op = if b then setBit else clearBit
 
 -- Different ways flags can be affected by an operation:
 data FlagMod = On | Off | As Bool | NA
@@ -46,7 +47,7 @@ modifyFlag flag NA = return ()
 setFlags :: (FlagMod, FlagMod, FlagMod, FlagMod) -> CPU s ()
 setFlags (z,n,h,c) = 
     modifyFlag Z z >>
-    modifyFlag N h >>
-    modifyFlag H n >>
+    modifyFlag N n >>
+    modifyFlag H h >>
     modifyFlag C c
 
