@@ -8,7 +8,7 @@ module CPU.Environment (
     ) where
     
 import CPU.Types
-import Rom
+import CPU.FrozenEnvironment
 
 import Data.Word
 import Data.STRef
@@ -45,54 +45,44 @@ data CPUEnvironment s = CPUEnvironment {
   , iereg :: STUArray s Address Word8
 }
 
--- Each pair of 8-bit registers can be accessed 
--- as a single 16-bit register.
-data ComboRegister = AF | BC | DE | HL
+initCPU :: Memory -> ST s (CPUEnvironment s)
+initCPU rom = resumeCPU $ defaultCPU { frz_rom00 = rom }
 
-initCPU :: Rom -> ST s (CPUEnvironment s)
-initCPU rom = do
-    rom00 <- thaw rom
-    rom01   <- newArray (0x4000,0x7FFF) 0x00
-    vram    <- newArray (0x8000,0x9FFF) 0x00
-    extram  <- newArray (0xA000,0xBFFF) 0x00
-    wram0   <- newArray (0xC000,0xCFFF) 0x00
-    wram1   <- newArray (0xD000,0xDFFF) 0x00
-    oam     <- newArray (0xFE00,0xFE9F) 0x00
-    ioports <- newArray (0xFF00,0xFF7F) 0x00
-    hram    <- newArray (0xFF80,0xFFFE) 0x00
-    iereg   <- newArray (0xFFFF,0xFFFF) 0x00
-    a  <- newSTRef 0x00
-    f  <- newSTRef 0x00
-    b  <- newSTRef 0x00
-    c  <- newSTRef 0x00
-    d  <- newSTRef 0x00
-    e  <- newSTRef 0x00
-    h  <- newSTRef 0x00
-    l  <- newSTRef 0x00
+resumeCPU :: FrozenCPUEnvironment -> ST s (CPUEnvironment s)
+resumeCPU state = do
+    rom00   <- thaw $ frz_rom00 state
+    rom01   <- thaw $ frz_rom01 state
+    vram    <- thaw $ frz_vram state
+    extram  <- thaw $ frz_extram state
+    wram0   <- thaw $ frz_wram0 state
+    wram1   <- thaw $ frz_wram1 state
+    oam     <- thaw $ frz_oam state
+    ioports <- thaw $ frz_ioports state
+    hram    <- thaw $ frz_hram state
+    iereg   <- thaw $ frz_iereg state
+    a  <- newSTRef $ frz_a state
+    f  <- newSTRef $ frz_f state
+    b  <- newSTRef $ frz_b state
+    c  <- newSTRef $ frz_c state
+    d  <- newSTRef $ frz_d state
+    e  <- newSTRef $ frz_e state
+    h  <- newSTRef $ frz_h state
+    l  <- newSTRef $ frz_l state
     sp <- newSTRef 0x00
     pc <- newSTRef 0x100
     return CPUEnvironment { 
-        a = a
-      , f = f
-      , b = b
-      , c = c
-      , d = d
-      , e = e
-      , h = h
-      , l = l
-      , sp = sp
-      , pc = pc 
-      , rom00 = rom00
-      , rom01 = rom01
-      , vram = vram
-      , extram = extram
-      , wram0 = wram0
-      , wram1 = wram1
-      , oam = oam
-      , ioports = ioports
-      , hram = hram
+        a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
+      , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
+      , wram0 = wram0, wram1 = wram1, oam = oam, ioports = ioports, hram = hram
       , iereg = iereg
     }
+
+--freezeCPU :: CPUEnvironment s -> ST s FrozenCPUEnvironment
+--freezeCPU cpu = 
+
+-- Each pair of 8-bit registers can be accessed 
+-- as a single 16-bit register.
+data ComboRegister = AF | BC | DE | HL
 
 registerPair :: ComboRegister -> (CPURegister s Word8, CPURegister s Word8)  
 registerPair AF = (a, f)

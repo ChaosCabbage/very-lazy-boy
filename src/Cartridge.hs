@@ -6,13 +6,13 @@ import Data.Word
 import Data.Array
 import qualified Data.ByteString as BS 
 
-import Rom
+import CPU.Types
 
-romFromFile :: IO Rom
+romFromFile :: IO Memory
 romFromFile = 
     fmap romFromByteString $ BS.readFile "Tetris.gb"
 
-romFromByteString :: BS.ByteString -> Rom
+romFromByteString :: BS.ByteString -> Memory
 romFromByteString contents = 
     array (0x00, 0x3FFF) $
     zip [0x00..0x3FFF] (take 0x4000 $ BS.unpack contents)

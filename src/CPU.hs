@@ -18,7 +18,6 @@ module CPU
 
     ) where
 
-import Rom
 import CPU.Types
 import CPU.Environment
 import BitTwiddling

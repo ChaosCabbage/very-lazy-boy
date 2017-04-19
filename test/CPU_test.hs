@@ -3,7 +3,6 @@ module Main where
 import CPU
 import CPU.Instructions
 import CPU.Environment
-import Rom
 import CPUTestrunner
 import Cartridge
 

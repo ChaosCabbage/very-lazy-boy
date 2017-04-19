@@ -5,8 +5,8 @@ module CPUTestrunner (
     ) where
 
 import CPU
-import Rom
+import CPU.Types
 import Control.Monad.ST
 
-runCPUTest :: (forall s. CPU s a) -> Rom -> a
+runCPUTest :: (forall s. CPU s a) -> Memory -> a
 runCPUTest f rom = runST $ initCPU rom >>= runCPU f

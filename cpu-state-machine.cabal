@@ -16,15 +16,15 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     CPU
-                     , Rom
                      , Cartridge
                      , CPU.Types
                      , CPU.Environment
                      , CPU.Instructions
-                     , CPU.Flags
-                     , CPU.Arithmetic
   other-modules:       BitTwiddling
                      , ShowHex
+                     , CPU.FrozenEnvironment
+                     , CPU.Flags
+                     , CPU.Arithmetic
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl
