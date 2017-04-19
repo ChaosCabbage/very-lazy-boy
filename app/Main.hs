@@ -6,6 +6,7 @@ import CPU.Environment
 import CPU.FrozenEnvironment
 import CPU.Instructions
 import Cartridge
+import Numeric (readHex)
 
 import Control.Monad.ST
 import Data.Array
@@ -22,12 +23,17 @@ stepper cpuState = do
     let pc = frz_pc cpuState
     let byte = frz_rom00 cpuState ! pc
     putStrLn $ printf "PC = 0x%02X (0x%02X)" pc byte
-    putStrLn "Type 'STEP' or 'QUIT' > "
+    putStrLn "Type 'STEP' or 'QUIT' or 'MEM' > "
     command <- getLine
     case command of
         "STEP" -> stepper $ runStep cpuState
         "QUIT" -> putStrLn "Byee"
-        _ -> putStrLn "Unknown command" >> stepper cpuState
+        "MEM"  -> putStrLn "Address: " >> readLn >>= printMem cpuState >> retry
+        _ -> putStrLn "Unknown command" >> retry
+    
+    where
+        retry = stepper cpuState
+        printMem cpu addr = putStrLn $ printf "(0x%02X) up my alley = 0x%02X" addr (frz_rom00 cpu ! addr)
 
 runStep :: FrozenCPUEnvironment -> FrozenCPUEnvironment
 runStep initialEnv = 
