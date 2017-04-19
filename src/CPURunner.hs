@@ -1,6 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 
-module CPUTestrunner (
+module CPURunner (
     runCPUTest
     ) where
 
