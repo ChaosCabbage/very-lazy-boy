@@ -30,8 +30,8 @@ setFlag :: Flag -> Bool -> CPU s ()
 setFlag flag b = 
     modifyReg f changeBit
     where 
-        changeBit w = op w $ flagBit flag 
         op = if b then setBit else clearBit
+        changeBit w = op w $ flagBit flag 
 
 -- Different ways flags can be affected by an operation:
 data FlagMod = On | Off | As Bool | NA

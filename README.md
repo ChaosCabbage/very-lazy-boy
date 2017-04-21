@@ -1,4 +1,4 @@
-# A gameboy CPU emulator in Haskell
+# A gameboy emulator in Haskell
 I'm a complete novice in both emulator writing and Haskell writing. For that reason, I thought this would be a good idea, maybe...
 
 I'll probably get bored, but hopefully, I'll document everything to my own satisfaction.
@@ -8,7 +8,15 @@ Right now the main exe is a debugger:
 * Type MEM, return, then a hex memory address to view the contents of that address.
 * Type QUIT to exit.
 
-## Detsils/Blog
+## Buildy & Runny
+Requires [stack](https://docs.haskellstack.org)
+```
+stack build
+stack exec gameboy-debugger-exe
+```
+Couldn't get much easier than that.
+
+## Details/Blog
 
 I started off by looking at this:
 https://github.com/trez/LazyNES
@@ -24,5 +32,20 @@ I've been trying to avoid "do" notation as much as I can. I'd rather figure out 
 
 I tried to make the internal functions match the gameboy assembler, e.g. there is a `ld` function to handle all the different LD instructions and the arguments are functions to get the source and destination. It's not really working. All the different versions take a different number of cycles so I still have to hack those in. 
 
-**Current status:** I'd say 3% complete.
-Tetris is stuck in a loop again because I haven't done interrupts.
+There was a point when I could run a lot of instructions, but the emulator crashed when the game tried to access unusable
+memory at 0xFEFF. Clearly something was wrong, but I didn't know what. If I was a good boy, I would be writing unit tests,
+but I'm not familiar with any haskell testing frameworks, and anyway, writing a gameboy debugger was much more fun!
+It's pretty simple: If you press enter, run the gameboy one step, then exit the ST monad and freeze the gameboy state.
+On the next step, the state is unfrozen.
+
+Anyway, it turned out that my flag logic had a bug - it turned flags on but never turned them off. Pretty easy to see
+in the debugger.
+
+**Current status:** Let's say 4% complete.
+Tetris is stuck in a loop again, and I think it's because I haven't done interrupts.
+But maybe I'll try drawing some graphics!
+
+**Current questions:** How often do you need to refresh the graphics? Can you get away with once per v-blank, or does it have to
+be once per h-blank?
+I'm concerned that exiting the ST monad too often will impact performance. Maybe the graphics can go _inside_ the ST monad?
+Or maybe I don't have to worry too much. It's only a gameboy, after all.
