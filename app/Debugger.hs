@@ -14,6 +14,7 @@ import Control.Monad.ST
 import Data.Array
 import Data.Word
 import Text.Printf
+import System.IO
 
 viewCPU :: FrozenCPUEnvironment -> String
 viewCPU cpu = 
@@ -38,16 +39,36 @@ stepper cpuState cycles = do
     putStrLn "Press enter to step, or type 'QUIT' or 'MEM' > "
     command <- getLine
     case command of
-        "" -> 
-            let (nextState, extraCycles) = runStep cpuState
-            in stepper nextState (cycles + extraCycles)  
+        "" -> doStepFunc runStep
         "QUIT" -> putStrLn "Byee"
         "MEM"  -> putStrLn "Address: " >> readLn >>= printMem cpuState >> retry
+        "RUN_TO" -> putStrLn "PC: " >> readLn >>= runToPc 
+        "DUMP_VRAM" -> dumpVRAM cpuState >> retry
         _ -> putStrLn "Unknown command" >> retry
     
     where
         retry = stepper cpuState cycles
         printMem cpu addr = putStrLn $ printf "[0x%02X] 0x%02X" addr (frz_rom00 cpu ! addr)
+        runToPc pc = doStepFunc $ stepWhile (\env -> frz_pc env /= pc)
+        doStepFunc f =   
+            let (nextState, extraCycles) = f cpuState
+            in stepper nextState (cycles + extraCycles)
+
+-- Probably going to be slow, since it's dipping in and out of the ST each step.
+-- To do: figure out how to do this inside the monad. 
+stepWhile :: (FrozenCPUEnvironment -> Bool) -> FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
+stepWhile condition env = stepWhile' condition 0 env 
+    where stepWhile' condition sum env = 
+            if 
+                condition env 
+            then 
+                let stepResult = runStep env
+                in stepWhile' condition (sum + snd stepResult) (fst stepResult) 
+            else 
+                (env, sum)
+
+testPc :: (Register16 -> Bool) -> (CPU s Bool)
+testPc f = readReg pc >>= return.f 
 
 runStep :: FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
 runStep initialEnv = 
@@ -63,7 +84,14 @@ runStep initialEnv =
     where 
         pause (cpu,cycles) = do
             frozenCPU <- pauseCPU cpu
-            return (frozenCPU, cycles) 
+            return (frozenCPU, cycles)
+
+dumpVRAM :: FrozenCPUEnvironment -> IO ()
+dumpVRAM  env = do
+    let contents = foldl concattostring "" (frz_vram env) 
+    writeFile "vram.txt" contents
+
+    where concattostring s v = s ++ (show v)
 
 main :: IO ()
 main = do
