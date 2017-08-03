@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-8.6
+resolver: lts-9.0
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -64,9 +64,3 @@ extra-package-dbs: []
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
-
-# I had problems with GLUT
-# A solution is suggested at the bottom of this page: https://github.com/haskell-opengl/GLUT/issues/19
-# Hasn't worked, but I'm leaving it in for now.
-ghc-options:
-  GLUT: -optl-Wl,-framework,GLUT
