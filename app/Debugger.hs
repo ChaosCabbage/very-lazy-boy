@@ -1,3 +1,5 @@
+{-# LANGUAGE Rank2Types #-}
+
 module Main where
 
 import CPU
@@ -49,42 +51,44 @@ stepper cpuState cycles = do
     where
         retry = stepper cpuState cycles
         printMem cpu addr = putStrLn $ printf "[0x%02X] 0x%02X" addr (frz_rom00 cpu ! addr)
-        runToPc pc = doStepFunc $ stepWhile (\env -> frz_pc env /= pc)
+        runToPc breakpoint = doStepFunc $ runCpu $ stepWhile (testPc (/= breakpoint))
         doStepFunc f =   
             let (nextState, extraCycles) = f cpuState
             in stepper nextState (cycles + extraCycles)
 
--- Probably going to be slow, since it's dipping in and out of the ST each step.
--- To do: figure out how to do this inside the monad. 
-stepWhile :: (FrozenCPUEnvironment -> Bool) -> FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
-stepWhile condition env = stepWhile' condition 0 env 
-    where stepWhile' condition sum env = 
-            if 
-                condition env 
-            then 
-                let stepResult = runStep env
-                in stepWhile' condition (sum + snd stepResult) (fst stepResult) 
-            else 
-                (env, sum)
-
 testPc :: (Register16 -> Bool) -> (CPU s Bool)
-testPc f = readReg pc >>= return.f 
+testPc f = readReg pc >>= return.f
 
-runStep :: FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
-runStep initialEnv = 
+type StopCondition s = CPU s Bool
+type CycleCountedComputation s = CPU s Int
+
+stepWhile :: forall s. StopCondition s -> CycleCountedComputation s
+stepWhile condition = 
+    stepWhile' condition 0
+    where 
+        stepWhile' condition sum = do
+            continue <- condition
+            if continue then
+                step >>= \cycles -> stepWhile' condition (sum + cycles)
+            else
+                return sum
+
+runCpu :: (forall s. CycleCountedComputation s) -> FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
+runCpu computation initialEnv = 
     runST $ resumeCPU initialEnv >>= runCPU (
         do
-            cycles <- step
+            cycles <- computation
             cpu <- extractEnvironment
             return (cpu, cycles)
     ) >>= pause
 
-    -- I wonder if there's a built in function to do this.
-    -- (m a, c) -> (m a -> m b) -> m (b, c)
     where 
         pause (cpu,cycles) = do
             frozenCPU <- pauseCPU cpu
             return (frozenCPU, cycles)
+
+runStep :: FrozenCPUEnvironment -> (FrozenCPUEnvironment, Cycles)
+runStep = runCpu step
 
 dumpVRAM :: FrozenCPUEnvironment -> IO ()
 dumpVRAM  env = do
