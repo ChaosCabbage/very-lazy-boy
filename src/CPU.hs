@@ -3,8 +3,6 @@ module CPU
         CPU
       , runCPU
       , initCPU
-      , fetch
-      , fetch16
 
       , readReg
       , writeReg
@@ -15,6 +13,15 @@ module CPU
       , readMemory
       , writeMemory
       , modifyMemory
+      
+      , fetch
+      , fetch16
+      , jumpTo
+      , pushOntoStack
+
+      , enableMasterInterrupt
+      , disableMasterInterrupt
+      , isMasterInterruptEnabled
 
       , extractEnvironment
 
@@ -32,10 +39,35 @@ import Control.Monad.Reader
 import Data.Word
 import qualified Data.Bits as Bit
 
--- CPU computations are 
--- functions from a shared stateful environment into state transformers.
-newtype CPU s a = CPU { runCPU :: (CPUEnvironment s) -> ST s a }
+----- The CPU Monad
+--
+-- I won't explain monads here, because we all know explaining monads is impossible.
+-- Anyway,
+-- the idea is to represent the internal state of a Gameboy,
+-- and build up individual computations on it
+-- until you get one big computation.
+--
+-- Example: Write the contents of register A to memory address 0xD123
+-- 
+--   readReg a >>= writeMemory 0xD123
+--   
+-- Super easy. Note that this expression gives you a _computation_.
+-- It doesn't do anything by itself.
+-- 
+-- The CPU monad is implemented on top of the ST monad.
+-- The ST monad allows you to have mutable variables and arrays,
+-- as long as everything is tidied up at the end and no state leaks out.
+-- That's how we achieve suitable speed for gameboy emulation.
+-- 
+-- A CPU computation is actually a function of the gameboy environment
+-- inside the ST monad.
+-- See the implementation of `readReg` for a clearer idea.
+--
+newtype CPU s a = CPU { 
+    runCPU :: (CPUEnvironment s) -> ST s a 
+}
 
+-- The monad instance is simple since we can lean heavily on the ST monad.
 instance Monad (CPU s) where
     return x = 
         CPU $ \_ -> return x
@@ -45,6 +77,7 @@ instance Monad (CPU s) where
             current <- runCPU m cpu -- Get the current answer of the ST.
             runCPU (f current) cpu  -- Apply the answer to f. Compose the results.        
 
+-- Standard Applicative and Functor instances.
 instance Applicative (CPU s) where
     pure = return
     (<*>) = ap
@@ -55,6 +88,8 @@ instance Functor (CPU s) where
 
 extractEnvironment :: CPU s (CPUEnvironment s)
 extractEnvironment = CPU $ \cpu -> return cpu
+
+----- Registers
 
 readReg :: CPURegister s r -> CPU s r
 readReg reg = CPU $ \cpu -> readSTRef (reg cpu)
@@ -87,6 +122,8 @@ modifyComboReg :: ComboRegister -> (Word16 -> Word16) -> CPU s ()
 modifyComboReg reg f = 
     (readComboReg reg) >>= (writeComboReg reg) . f
 
+----- Memory
+--
 -- The memory map is divided into different banks. 
 -- Get the bank that this address points to.
 -- Some banks are switchable - these are not yet dealt with.
@@ -121,8 +158,35 @@ modifyMemory :: Address -> (Word8 -> Word8) -> CPU s ()
 modifyMemory addr f = 
     (readMemory addr) >>= (writeMemory addr) . f
 
+----- Interrupt Master Enable
+--
+-- No interrupts will ever happen unless the IME is on.
+-- This is not a memory address. It's either on or off.
+enableMasterInterrupt  :: CPU s ()
+disableMasterInterrupt :: CPU s ()
+enableMasterInterrupt  = CPU $ \cpu -> writeSTRef (ime cpu) True
+disableMasterInterrupt = CPU $ \cpu -> writeSTRef (ime cpu) False
+
+isMasterInterruptEnabled :: CPU s Bool
+isMasterInterruptEnabled = CPU $ \cpu -> readSTRef (ime cpu)
+
+----- Other common routines
+
+jumpTo :: Address -> CPU s ()
+jumpTo addr = writeReg pc addr
+
 incrementPC :: CPU s ()
 incrementPC = modifyReg pc (+1)
+
+-- The Gameboy stack is upside down.
+-- It starts at the top and moves down the addresses.
+pushOntoStack :: Word16 -> CPU s ()
+pushOntoStack word = do
+    let (lowByte, highByte) = toBytes word
+    addr <- readReg sp
+    writeMemory (addr + 0) lowByte
+    writeMemory (addr + 1) highByte
+    modifyReg sp (subtract 2)
 
 fetch :: CPU s Opcode
 fetch = do

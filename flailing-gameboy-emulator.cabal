@@ -21,7 +21,9 @@ library
                      , CPU.FrozenEnvironment
                      , CPU.Environment
                      , CPU.Instructions
+                     , CPU.Interrupts
                      , CPURunner
+                     , Viewers
   other-modules:       BitTwiddling
                      , ShowHex
                      , CPU.Flags
@@ -30,6 +32,7 @@ library
                      , array
                      , mtl
                      , bytestring
+                     , cond
   default-language:    Haskell2010
 
 executable gameboy-debugger-exe

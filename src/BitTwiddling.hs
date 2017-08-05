@@ -1,5 +1,6 @@
 module BitTwiddling (
-    joinBytesM
+    joinBytes
+  , joinBytesM
   , to16
   , to8
   , toBytes

@@ -1,6 +1,5 @@
 module CPU.Instructions (
     execute
-  , step
     ) where
 
 import BitTwiddling
@@ -12,10 +11,7 @@ import CPU
 import ShowHex
 
 import qualified Data.Bits as Bit
-import Data.Word
-
-step :: CPU s Cycles
-step = fetch >>= execute
+import Data.Word    
 
 execute :: Opcode -> CPU s Cycles
 execute op = case op of
@@ -178,4 +174,6 @@ jr cc byte = do
 
 -- DI: Disable interrupts
 di :: CPU s Cycles
-di = return 4 -- Haven't implemented interrupts yet.
+di = 
+    disableMasterInterrupt >> 
+    return 4 

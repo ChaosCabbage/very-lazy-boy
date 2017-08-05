@@ -45,6 +45,8 @@ data CPUEnvironment s = CPUEnvironment {
   , ioports :: STUArray s Address Word8
   , hram :: STUArray s Address Word8
   , iereg :: STUArray s Address Word8
+  -- Master interrupt flag
+  , ime :: STRef s Bool
 }
 
 initCPU :: Memory -> ST s (CPUEnvironment s)
@@ -72,11 +74,13 @@ resumeCPU state = do
     l  <- newSTRef $ frz_l state
     sp <- newSTRef $ frz_sp state
     pc <- newSTRef $ frz_pc state
+    ime <- newSTRef $ frz_ime state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
       , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
       , wram0 = wram0, wram1 = wram1, oam = oam, ioports = ioports, hram = hram
       , iereg = iereg
+      , ime = ime
     }
 
 pauseCPU :: CPUEnvironment s -> ST s FrozenCPUEnvironment
@@ -101,6 +105,7 @@ pauseCPU cpu = do
     f_l  <- readSTRef $ l cpu
     f_sp <- readSTRef $ sp cpu
     f_pc <- readSTRef $ pc cpu
+    f_ime <- readSTRef $ ime cpu
     return FrozenCPUEnvironment { 
         frz_a = f_a, frz_f = f_f, frz_b = f_b, frz_c = f_c
       , frz_d = f_d, frz_e = f_e, frz_h = f_h, frz_l = f_l
@@ -108,6 +113,7 @@ pauseCPU cpu = do
       , frz_rom00 = f_rom00, frz_rom01 = f_rom01, frz_vram = f_vram, frz_extram = f_extram
       , frz_wram0 = f_wram0, frz_wram1 = f_wram1, frz_oam = f_oam, frz_ioports = f_ioports, frz_hram = f_hram
       , frz_iereg = f_iereg
+      , frz_ime = f_ime
     }
 
 -- Each pair of 8-bit registers can be accessed 
