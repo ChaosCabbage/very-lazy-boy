@@ -20,9 +20,6 @@ import Control.Monad.ST as ST
 newtype MemoryBank s = MemoryBank {
     array :: (CPUEnvironment s -> STUArray s Address Word8)
 }
-newtype IOBank s = IOBank {
-    array :: (CPUEnvironment s -> STUArray s Address Word8)
-}
 
 type CPURegister s w = (CPUEnvironment s -> STRef s w)
 
