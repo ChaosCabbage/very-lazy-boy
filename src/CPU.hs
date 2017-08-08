@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module CPU
     ( 
         CPU
@@ -122,37 +124,54 @@ modifyComboReg :: ComboRegister -> (Word16 -> Word16) -> CPU s ()
 modifyComboReg reg f = 
     (readComboReg reg) >>= (writeComboReg reg) . f
 
+
+class Addressable s a 
+    read   :: a -> Address -> CPU s Word8 
+    write  :: Word8 -> a -> Address -> CPU s ()
+
+instance Addressable s (MemoryBank s) where
+    read bank address = CPU $ \cpu -> 
+        readArray (array $ bank cpu) address
+
+    write byte bank address = CPU $ \cpu ->
+        writeArray (array $ bank cpu) address
+
+instance Addressable s (IOBank s) where
+    read bank address = CPU $ \cpu -> 
+        readArray (array $ bank cpu) address
+
+    write _ _ _ = return () -- IO is read-only
+
+
 ----- Memory
 --
 -- The memory map is divided into different banks. 
 -- Get the bank that this address points to.
 -- Some banks are switchable - these are not yet dealt with.
-memoryBank :: Address -> MemoryBank s
-memoryBank addr
-    | addr < 0x4000 = rom00   -- 16KB Fixed cartridge rom bank.
-    | addr < 0x8000 = rom01   -- 16KB Switchable cartridge rom bank.
-    | addr < 0xA000 = vram    -- 8KB Video RAM.
-    | addr < 0xC000 = extram  -- 8KB Switchable RAM in cartridge.
-    | addr < 0xD000 = wram0   -- 4KB Work RAM.
-    | addr < 0xE000 = wram1   -- 4KB Work RAM.
+withMemoryBank :: (Addressable s a) => Address -> (Addressable s a -> Address -> b) -> CPU s b
+withMemoryBank addr f
+    | addr < 0x4000 = fa rom00   -- 16KB Fixed cartridge rom bank.
+    | addr < 0x8000 = fa rom01   -- 16KB Switchable cartridge rom bank.
+    | addr < 0xA000 = fa vram    -- 8KB Video RAM.
+    | addr < 0xC000 = fa extram  -- 8KB Switchable RAM in cartridge.
+    | addr < 0xD000 = fa wram0   -- 4KB Work RAM.
+    | addr < 0xE000 = fa wram1   -- 4KB Work RAM.
     | addr < 0xFE00 = error $ "Memory access at " ++ (showHex addr) ++ ". " ++
                               "This is an 'echo' address. Not implemented yet :("
-    | addr < 0xFEA0 = oam     -- Sprite Attribute Table
+    | addr < 0xFEA0 = fa oam     -- Sprite Attribute Table
     | addr < 0xFF00 = error $ "Memory access at unusable address: " ++ (showHex addr)
-    | addr < 0xFF80 = ioports -- IO ports
-    | addr < 0xFFFF = hram    -- 127 byte High RAM
-    | addr == 0xFFFF = iereg  -- Interrupt Enable register.
+    | addr < 0xFF80 = fa ioports -- IO ports
+    | addr < 0xFFFF = fa hram    -- 127 byte High RAM
+    | addr ==0xFFFF = fa iereg  -- Interrupt Enable register.
+    where
+        fa = `f` addr
 
 
 readMemory :: Address -> CPU s Word8
-readMemory addr = CPU $ \cpu -> 
-    let array = memoryBank addr cpu
-    in readArray array addr
+readMemory addr = withMemoryBank addr (read)
 
 writeMemory :: Address -> Word8 -> CPU s ()
-writeMemory addr byte = CPU $ \cpu -> 
-    let array = memoryBank addr cpu
-    in writeArray array addr byte
+writeMemory addr byte = withMemoryBank addr (write byte)
 
 modifyMemory :: Address -> (Word8 -> Word8) -> CPU s ()
 modifyMemory addr f = 

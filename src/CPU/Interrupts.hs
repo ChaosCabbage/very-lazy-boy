@@ -15,17 +15,19 @@ import CPU (
     pushOntoStack, 
     jumpTo, 
     isMasterInterruptEnabled,
-    disableMasterInterrupt )
+    disableMasterInterrupt 
+)
 import CPU.Environment (pc)
 import CPU.Types (Address)
 import Data.Bits (setBit, clearBit, testBit)
 import Control.Conditional (ifM, (<&&>))
 
+
 data Interrupt = Interrupt Int Address
 -----------------------------------------
 vBlank  = Interrupt 0 0x40    -- After the screen has finished drawing
-lcdStat = Interrupt 1 0x48        
-timer   = Interrupt 2 0x50
+lcdStat = Interrupt 1 0x48    -- Various LCD events
+timer   = Interrupt 2 0x50    -- At user-defined time intervals
 serial  = Interrupt 3 0x58
 joypad  = Interrupt 4 0x60
 
@@ -44,11 +46,34 @@ interruptRequest = 0xFF0F
 -- If an interrupt's byte is set, the interrupt should happen 
 -- after the next opcode is executed.
 --
+shouldRun :: Interrupt -> CPU s Bool
+shouldRun (Interrupt bit _) =
+    isMasterInterruptEnabled <&&>
+    (testInterruptEnabled bit) <&&> 
+    (testInterruptRequested bit)
+--
+--
 -- As far as I know, if multiple interrupts are waiting, 
 -- only the first one is handled, with this priority:
 interruptsByPriority = [vBlank, lcdStat, timer, serial, joypad]
 --
+runInterrupts :: CPU s ()
+runInterrupts = tryRemainingInterrupts interruptsByPriority
+    where
+        tryRemainingInterrupts [] = return ()
+        tryRemainingInterrupts (interrupt : remainder) =
+            ifM (shouldRun interrupt)
+                (interruptRoutine interrupt)
+                (tryRemainingInterrupts remainder)
+--
+-- The interrupt routine takes 12 cycles.
 -- It is possible for an interrupt to happen during another interrupt.
+interruptRoutine :: Interrupt -> CPU s ()
+interruptRoutine (Interrupt bit handler) = do
+    disableMasterInterrupt 
+    resetInterruptRequest bit
+    readReg pc >>= pushOntoStack
+    jumpTo handler
 
 testMemoryBit address bit  = fmap (`testBit` bit) (readMemory address) 
 setMemoryBit address bit   = modifyMemory address (`setBit` bit)
@@ -68,25 +93,3 @@ setInterruptRequest   = setMemoryBit interruptRequest
 resetInterruptRequest = clearMemoryBit interruptRequest
 testInterruptRequested = testMemoryBit interruptRequest
 
-shouldRun :: Interrupt -> CPU s Bool
-shouldRun (Interrupt bit _) =
-    ifM (isMasterInterruptEnabled)
-        ((testInterruptEnabled bit) <&&> (testInterruptRequested bit))
-        (return False)
-
-runInterrupts :: CPU s ()
-runInterrupts = tryRemainingInterrupts interruptsByPriority
-    where
-        tryRemainingInterrupts [] = return ()
-        tryRemainingInterrupts (interrupt : remainder) =
-            ifM (shouldRun interrupt)
-                (interruptRoutine interrupt)
-                (tryRemainingInterrupts remainder)
-
--- This is what happens when an interrupt is triggered: 
-interruptRoutine :: Interrupt -> CPU s ()
-interruptRoutine (Interrupt bit handler) = do
-    disableMasterInterrupt 
-    resetInterruptRequest bit
-    readReg pc >>= pushOntoStack
-    jumpTo handler

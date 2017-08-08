@@ -17,7 +17,13 @@ import Data.STRef
 import Data.Array.ST
 import Control.Monad.ST as ST
 
-type MemoryBank s = (CPUEnvironment s -> STUArray s Address Word8)
+newtype MemoryBank s = MemoryBank {
+    array :: (CPUEnvironment s -> STUArray s Address Word8)
+}
+newtype IOBank s = IOBank {
+    array :: (CPUEnvironment s -> STUArray s Address Word8)
+}
+
 type CPURegister s w = (CPUEnvironment s -> STRef s w)
 
 -- The whole state of the CPU and all the memory.
@@ -35,16 +41,16 @@ data CPUEnvironment s = CPUEnvironment {
   , sp :: STRef s Register16
   , pc :: STRef s Register16
   -- Memory banks:
-  , rom00 :: STUArray s Address Word8
-  , rom01 :: STUArray s Address Word8
-  , vram :: STUArray s Address Word8
-  , extram :: STUArray s Address Word8
-  , wram0 :: STUArray s Address Word8
-  , wram1 :: STUArray s Address Word8
-  , oam :: STUArray s Address Word8
-  , ioports :: STUArray s Address Word8
-  , hram :: STUArray s Address Word8
-  , iereg :: STUArray s Address Word8
+  , rom00 :: MemoryBank s
+  , rom01 :: MemoryBank s
+  , vram :: MemoryBank s
+  , extram :: MemoryBank s
+  , wram0 :: MemoryBank s
+  , wram1 :: MemoryBank s
+  , oam :: MemoryBank s
+  , ioports :: IOBank s
+  , hram :: MemoryBank s
+  , iereg :: MemoryBank s
   -- Master interrupt flag
   , ime :: STRef s Bool
 }
@@ -77,9 +83,16 @@ resumeCPU state = do
     ime <- newSTRef $ frz_ime state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
-      , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
-      , wram0 = wram0, wram1 = wram1, oam = oam, ioports = ioports, hram = hram
-      , iereg = iereg
+      , rom00 = MemoryBank { array=rom00 }
+      , rom01 = MemoryBank { array=rom01 }
+      , vram = MemoryBank { array=vram }
+      , extram = MemoryBank { array=extram }
+      , wram0 = MemoryBank { array=wram0 }
+      , wram1 = MemoryBank { array=wram1 }
+      , oam = MemoryBank { array=oam }
+      , ioports = IOBank { array=ioports }
+      , hram = MemoryBank { array=hram }
+      , iereg = MemoryBank { array=iereg }
       , ime = ime
     }
 
