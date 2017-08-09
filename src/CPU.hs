@@ -138,18 +138,21 @@ modifyComboReg reg f =
 -- Some banks are switchable - these are not yet dealt with.
 data Addressable s = RAM (MemoryBank s)
                    | IOPorts (IOPorts s)
+                   | Sinkhole
 
 readAddressable :: Addressable s -> Address -> CPU s Word8
 readAddressable (RAM bank) address = CPU $ \cpu -> 
     readArray (bank cpu) address
 readAddressable (IOPorts io) address = CPU $ \cpu -> 
     GBIO.readPort address (io cpu)
+readAddressable Sinkhole _ = return 0x00
 
 writeAddressable :: Addressable s -> Address -> Word8 -> CPU s ()
 writeAddressable (RAM bank) address byte = CPU $ \cpu -> 
     writeArray (bank cpu) address byte
 writeAddressable (IOPorts io) address byte = CPU $ \cpu -> 
-    GBIO.writePort address byte (io cpu) 
+    GBIO.writePort address byte (io cpu)
+writeAddressable Sinkhole _ _ = return () 
 
 -- Get the bank that this address points to.
 memoryBank :: Address -> Addressable s
@@ -163,7 +166,7 @@ memoryBank addr
     | addr < 0xFE00 = error $ "Memory access at " ++ (showHex addr) ++ ". " ++
                               "This is an 'echo' address. Not implemented yet :("
     | addr < 0xFEA0 = RAM oam     -- Sprite Attribute Table
-    | addr < 0xFF00 = error $ "Memory access at unusable address: " ++ (showHex addr)
+    | addr < 0xFF00 = Sinkhole
     | addr < 0xFF80 = IOPorts ioports -- IO ports
     | addr < 0xFFFF = RAM hram    -- 127 byte High RAM
     | addr ==0xFFFF = RAM iereg  -- Interrupt Enable register.
