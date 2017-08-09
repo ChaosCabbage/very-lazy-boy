@@ -3,6 +3,7 @@ module CPU.Environment (
   , ComboRegister(..)
   , MemoryBank
   , CPURegister
+  , IOPorts
   , initCPU
   , resumeCPU
   , pauseCPU
@@ -11,17 +12,16 @@ module CPU.Environment (
     
 import CPU.Types
 import CPU.FrozenEnvironment
+import qualified CPU.IORegisters as GBIO
 
 import Data.Word
 import Data.STRef
 import Data.Array.ST
 import Control.Monad.ST as ST
 
-newtype MemoryBank s = MemoryBank {
-    array :: (CPUEnvironment s -> STUArray s Address Word8)
-}
-
 type CPURegister s w = (CPUEnvironment s -> STRef s w)
+type MemoryBank s = CPUEnvironment s -> STUArray s Address Word8
+type IOPorts s = CPUEnvironment s -> GBIO.IORegisters s
 
 -- The whole state of the CPU and all the memory.
 -- Mutable, for use in the ST monad.
@@ -38,16 +38,16 @@ data CPUEnvironment s = CPUEnvironment {
   , sp :: STRef s Register16
   , pc :: STRef s Register16
   -- Memory banks:
-  , rom00 :: MemoryBank s
-  , rom01 :: MemoryBank s
-  , vram :: MemoryBank s
-  , extram :: MemoryBank s
-  , wram0 :: MemoryBank s
-  , wram1 :: MemoryBank s
-  , oam :: MemoryBank s
-  , ioports :: IOBank s
-  , hram :: MemoryBank s
-  , iereg :: MemoryBank s
+  , rom00 :: STUArray s Address Word8
+  , rom01 :: STUArray s Address Word8
+  , vram :: STUArray s Address Word8
+  , extram :: STUArray s Address Word8
+  , wram0 :: STUArray s Address Word8
+  , wram1 :: STUArray s Address Word8
+  , oam :: STUArray s Address Word8
+  , ioports :: GBIO.IORegisters s
+  , hram :: STUArray s Address Word8
+  , iereg :: STUArray s Address Word8
   -- Master interrupt flag
   , ime :: STRef s Bool
 }
@@ -64,7 +64,7 @@ resumeCPU state = do
     wram0   <- thaw $ frz_wram0 state
     wram1   <- thaw $ frz_wram1 state
     oam     <- thaw $ frz_oam state
-    ioports <- thaw $ frz_ioports state
+    ioports <- GBIO.thaw $ frz_ioports state
     hram    <- thaw $ frz_hram state
     iereg   <- thaw $ frz_iereg state
     a  <- newSTRef $ frz_a state
@@ -80,16 +80,16 @@ resumeCPU state = do
     ime <- newSTRef $ frz_ime state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
-      , rom00 = MemoryBank { array=rom00 }
-      , rom01 = MemoryBank { array=rom01 }
-      , vram = MemoryBank { array=vram }
-      , extram = MemoryBank { array=extram }
-      , wram0 = MemoryBank { array=wram0 }
-      , wram1 = MemoryBank { array=wram1 }
-      , oam = MemoryBank { array=oam }
-      , ioports = IOBank { array=ioports }
-      , hram = MemoryBank { array=hram }
-      , iereg = MemoryBank { array=iereg }
+      , rom00 = rom00
+      , rom01 = rom01
+      , vram = vram
+      , extram = extram
+      , wram0 = wram0
+      , wram1 = wram1
+      , oam = oam
+      , ioports = ioports
+      , hram = hram
+      , iereg = iereg
       , ime = ime
     }
 
@@ -102,7 +102,7 @@ pauseCPU cpu = do
     f_wram0   <- freeze $ wram0 cpu
     f_wram1   <- freeze $ wram1 cpu
     f_oam     <- freeze $ oam cpu
-    f_ioports <- freeze $ ioports cpu
+    f_ioports <- GBIO.freeze $ ioports cpu
     f_hram    <- freeze $ hram cpu
     f_iereg   <- freeze $ iereg cpu
     f_a  <- readSTRef $ a cpu

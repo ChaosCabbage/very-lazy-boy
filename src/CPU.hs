@@ -6,6 +6,8 @@ module CPU
       , runCPU
       , initCPU
 
+      , updateMachineTicks
+
       , readReg
       , writeReg
       , modifyReg
@@ -31,6 +33,7 @@ module CPU
 
 import CPU.Types
 import CPU.Environment
+import qualified CPU.IORegisters as GBIO
 import BitTwiddling
 import ShowHex
 
@@ -39,7 +42,6 @@ import Data.STRef
 import Data.Array.ST
 import Control.Monad.Reader
 import Data.Word
-import qualified Data.Bits as Bit
 
 ----- The CPU Monad
 --
@@ -125,54 +127,58 @@ modifyComboReg reg f =
     (readComboReg reg) >>= (writeComboReg reg) . f
 
 
-class Addressable s a 
-    read   :: a -> Address -> CPU s Word8 
-    write  :: Word8 -> a -> Address -> CPU s ()
-
-instance Addressable s (MemoryBank s) where
-    read bank address = CPU $ \cpu -> 
-        readArray (array $ bank cpu) address
-
-    write byte bank address = CPU $ \cpu ->
-        writeArray (array $ bank cpu) address
-
-instance Addressable s (IOBank s) where
-    read bank address = CPU $ \cpu -> 
-        readArray (array $ bank cpu) address
-
-    write _ _ _ = return () -- IO is read-only
-
-
 ----- Memory
 --
 -- The memory map is divided into different banks. 
--- Get the bank that this address points to.
+-- Most of them act as simple read/write RAM.
+--
+-- Some of them don't, such as the IO ports, which
+-- actually tell you about things happening in the hardware.
+--
 -- Some banks are switchable - these are not yet dealt with.
-withMemoryBank :: (Addressable s a) => Address -> (Addressable s a -> Address -> b) -> CPU s b
-withMemoryBank addr f
-    | addr < 0x4000 = fa rom00   -- 16KB Fixed cartridge rom bank.
-    | addr < 0x8000 = fa rom01   -- 16KB Switchable cartridge rom bank.
-    | addr < 0xA000 = fa vram    -- 8KB Video RAM.
-    | addr < 0xC000 = fa extram  -- 8KB Switchable RAM in cartridge.
-    | addr < 0xD000 = fa wram0   -- 4KB Work RAM.
-    | addr < 0xE000 = fa wram1   -- 4KB Work RAM.
+data Addressable s = RAM (MemoryBank s)
+                   | IOPorts (IOPorts s)
+
+readAddressable :: Addressable s -> Address -> CPU s Word8
+readAddressable (RAM bank) address = CPU $ \cpu -> 
+    readArray (bank cpu) address
+readAddressable (IOPorts io) address = CPU $ \cpu -> 
+    GBIO.readPort address (io cpu)
+
+writeAddressable :: Addressable s -> Address -> Word8 -> CPU s ()
+writeAddressable (RAM bank) address byte = CPU $ \cpu -> 
+    writeArray (bank cpu) address byte
+writeAddressable (IOPorts io) address byte = CPU $ \cpu -> 
+    GBIO.writePort address byte (io cpu) 
+
+-- Get the bank that this address points to.
+memoryBank :: Address -> Addressable s
+memoryBank addr 
+    | addr < 0x4000 = RAM rom00   -- 16KB Fixed cartridge rom bank.
+    | addr < 0x8000 = RAM rom01   -- 16KB Switchable cartridge rom bank.
+    | addr < 0xA000 = RAM vram    -- 8KB Video RAM.
+    | addr < 0xC000 = RAM extram  -- 8KB Switchable RAM in cartridge.
+    | addr < 0xD000 = RAM wram0   -- 4KB Work RAM.
+    | addr < 0xE000 = RAM wram1   -- 4KB Work RAM.
     | addr < 0xFE00 = error $ "Memory access at " ++ (showHex addr) ++ ". " ++
                               "This is an 'echo' address. Not implemented yet :("
-    | addr < 0xFEA0 = fa oam     -- Sprite Attribute Table
+    | addr < 0xFEA0 = RAM oam     -- Sprite Attribute Table
     | addr < 0xFF00 = error $ "Memory access at unusable address: " ++ (showHex addr)
-    | addr < 0xFF80 = fa ioports -- IO ports
-    | addr < 0xFFFF = fa hram    -- 127 byte High RAM
-    | addr ==0xFFFF = fa iereg  -- Interrupt Enable register.
-    where
-        fa = `f` addr
+    | addr < 0xFF80 = IOPorts ioports -- IO ports
+    | addr < 0xFFFF = RAM hram    -- 127 byte High RAM
+    | addr ==0xFFFF = RAM iereg  -- Interrupt Enable register.
 
-
+-- This is the public function to read a memory address,
+-- no matter what it is internally.
 readMemory :: Address -> CPU s Word8
-readMemory addr = withMemoryBank addr (read)
-
+readMemory addr = readAddressable (memoryBank addr) addr
+--
+-- The public function to write to a memory address
 writeMemory :: Address -> Word8 -> CPU s ()
-writeMemory addr byte = withMemoryBank addr (write byte)
-
+writeMemory addr = writeAddressable (memoryBank addr) addr
+--
+-- A lot of instructions want to modify an memory address in-place,
+-- so here's a convenient function
 modifyMemory :: Address -> (Word8 -> Word8) -> CPU s ()
 modifyMemory addr f = 
     (readMemory addr) >>= (writeMemory addr) . f
@@ -215,3 +221,10 @@ fetch = do
 
 fetch16 :: CPU s Word16
 fetch16 = fetch `joinBytesM` fetch
+
+----- Machine ticks
+--
+-- Keep the machine ticking along in between instructions.
+updateMachineTicks :: Cycles -> CPU s ()
+updateMachineTicks extraCycles = CPU $ \cpu ->
+    GBIO.addCycles (ioports cpu) extraCycles

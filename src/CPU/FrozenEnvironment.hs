@@ -5,6 +5,7 @@ module CPU.FrozenEnvironment (
     ) where
 
 import CPU.Types
+import qualified CPU.IORegisters as GBIO
 import Data.Word
 import Data.Array
 import ShowHex (showHex)
@@ -33,7 +34,7 @@ data FrozenCPUEnvironment = FrozenCPUEnvironment {
   , frz_wram0 :: Array Address Word8
   , frz_wram1 :: Array Address Word8
   , frz_oam :: Array Address Word8
-  , frz_ioports :: Array Address Word8
+  , frz_ioports :: GBIO.FrozenIORegisters
   , frz_hram :: Array Address Word8
   , frz_iereg :: Array Address Word8
   -- Master interrupt flag
@@ -49,9 +50,9 @@ defaultCPU = FrozenCPUEnvironment {
   , frz_wram0   = zeroMemory (0xC000, 0xCFFF)
   , frz_wram1   = zeroMemory (0xD000, 0xDFFF)
   , frz_oam     = zeroMemory (0xFE00, 0xFE9F)
-  , frz_ioports = zeroMemory (0xFF00, 0xFF7F)
   , frz_hram    = zeroMemory (0xFF80, 0xFFFE)
   , frz_iereg   = zeroMemory (0xFFFF, 0xFFFF)
+  , frz_ioports = GBIO.create
   , frz_a  = 0x01
   , frz_f  = 0xB0
   , frz_b  = 0x00
@@ -80,7 +81,7 @@ memoryBank addr
                               "This is an 'echo' address. Not implemented yet :("
     | addr < 0xFEA0 = frz_oam     -- Sprite Attribute Table
     | addr < 0xFF00 = error $ "Memory access at unusable address: " ++ (showHex addr)
-    | addr < 0xFF80 = frz_ioports -- IO ports
+    | addr < 0xFF80 = error $ "Remind me to implement access to the IO ports"
     | addr < 0xFFFF = frz_hram    -- 127 byte High RAM
     | addr == 0xFFFF = frz_iereg  -- Interrupt Enable register.
 

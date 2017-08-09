@@ -7,16 +7,16 @@ module CPU.Interrupts (
 -- They are triggered by the hardware when something significant happens.
 
 import CPU (
-    CPU(..), 
-    readMemory, 
-    modifyMemory,
-    readReg,
-    writeReg, 
-    pushOntoStack, 
-    jumpTo, 
-    isMasterInterruptEnabled,
-    disableMasterInterrupt 
-)
+    CPU
+  , readMemory
+  , modifyMemory
+  , readReg
+  , writeReg 
+  , pushOntoStack 
+  , jumpTo
+  , isMasterInterruptEnabled
+  , disableMasterInterrupt 
+  )
 import CPU.Environment (pc)
 import CPU.Types (Address)
 import Data.Bits (setBit, clearBit, testBit)

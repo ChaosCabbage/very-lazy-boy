@@ -28,6 +28,7 @@ library
                      , ShowHex
                      , CPU.Flags
                      , CPU.Arithmetic
+                     , CPU.IORegisters
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl

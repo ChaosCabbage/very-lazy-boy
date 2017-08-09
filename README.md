@@ -38,22 +38,18 @@ but I'm not familiar with any haskell testing frameworks, and anyway, writing a 
 It's pretty simple: If you press enter, run the gameboy one step, then exit the ST monad and freeze the gameboy state.
 On the next step, the state is unfrozen.
 
-Anyway, it turned out that my flag logic had a bug - it turned flags on but never turned them off. Pretty easy to see
-in the debugger.
 
 **Current status:** Nearly got my first frame!
-Tetris is stuck in a "wait for vblank" loop.   
-```
-0x02B2:   LD a,0xFF44 ; Load the LCD y location into register A
-          CP 94       ; Compare register A with 0x94
-          JR NZ,02B2  ; If not zero, jump back to 0x02B2
-```
-The value at 0xFF44 is the current LCD line being written. When it gets to 148 (0x94), that's the vblank period.
-I haven't implemented any of these IO registers properly yet.
 
-Also, BGB says HL = 0xCFFF at this point. We've got HL = 0xFFCF. Must have confused a high byte and a low byte.
+- Implemented a mechanism to read and write to IO ports.
+- Implemented interrupts
+- Badly need some tests
 
-**Current questions:** How often do you need to refresh the graphics? Can you get away with once per v-blank, or does it have to
-be once per h-blank?
+Current problem is a crash trying to access 0xFEFF. 
+This is caused by my combo registers having their high and low
+bytes the wrong way around.
+
+**Current questions:**
 I'm concerned that exiting the ST monad too often will impact performance. Maybe the graphics can go _inside_ the ST monad?
 Or maybe I don't have to worry too much. It's only a gameboy, after all.
+Can I 

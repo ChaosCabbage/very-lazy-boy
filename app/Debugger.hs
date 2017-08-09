@@ -30,7 +30,6 @@ stepper cpuState cycles = do
         "" -> doStepFunc runStep
         "QUIT" -> putStrLn "Byee"
         "MEM"  -> putStrLn "Address: " >> readLn >>= printMem cpuState >> retry
-        "REQUEST_VBLANK" -> requestVBlank
         "STACK" -> putStrLn (viewStack cpuState) >> retry
         "RUN_TO" -> putStrLn "PC: " >> readLn >>= runToPc
         "RUN_FOR" -> putStrLn "Cycles: " >> readLn >>= runForCycles 
@@ -39,23 +38,12 @@ stepper cpuState cycles = do
     
     where
         retry = stepper cpuState cycles
-        requestVBlank = stepper (setVBlankBit cpuState) cycles   
         printMem cpu addr = putStrLn $ printf "[0x%02X] 0x%02X" addr (readFrzMemory addr cpu)
         runToPc breakpoint = doStepFunc $ runCpu $ stepWhile (testPc (/= breakpoint))
         runForCycles num = doStepFunc $ runCpu $ stepWhileCycles (<= num)
         doStepFunc f =   
             let (nextState, extraCycles) = f cpuState
             in stepper nextState (cycles + extraCycles)
-
--- Pretty dodgy but meh
-setVBlankBit :: FrozenCPUEnvironment -> FrozenCPUEnvironment
-setVBlankBit cpu = 
-    let 
-        int_reqs = readFrzMemory 0xFF0F cpu
-    in
-        cpu {
-            frz_ioports = (frz_ioports cpu)//[(0xFF0F, int_reqs `setBit` 0)]
-        }
 
 testPc :: (Register16 -> Bool) -> (CPU s Bool)
 testPc f = readReg pc >>= return.f

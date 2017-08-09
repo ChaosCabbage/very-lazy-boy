@@ -11,7 +11,7 @@ module CPU.IORegisters (
 
 import CPU.Types (Address)
 import Data.Word (Word8)
-import Data.STRef (STRef(..), readSTRef, writeSTRef)
+import Data.STRef (STRef, newSTRef, readSTRef, writeSTRef)
 import Control.Monad.ST
 import Text.Printf (printf)
 
@@ -26,7 +26,7 @@ import Text.Printf (printf)
 -- Right now, that just means the number of cycles elapsed.
 data IORegisters s = IORegisters {
     elapsedCycles :: STRef s Int
-}
+} 
 --
 -- Let's have a handy access function for the number of cycles
 cycles :: IORegisters s -> ST s Int
@@ -35,7 +35,7 @@ cycles io = readSTRef (elapsedCycles io)
 -- And I need a frozen version for outside of the CPU monad.
 data FrozenIORegisters = FrozenIORegisters {
     frz_elapsedCycles :: Int
-}
+} deriving (Show)
 -- (Maybe I can generate this pair with some template haskell?)
 --
 ----- Construction
@@ -80,8 +80,8 @@ readPort addr io
 -- Most IO registers are read-only. Some of them are reset to zero upon writing.
 -- A few can genuinely be written to.
 -- As a first implementation, it seemed safest to do nothing.
-writePort :: Address -> IORegisters s -> ST s ()
-writePort addr _ 
+writePort :: Address -> Word8 -> IORegisters s -> ST s ()
+writePort addr _ _
     | isIOPort addr = return ()
     | otherwise = 
         error $ printf "Address 0x%04X is not an IO port" addr   
@@ -104,7 +104,7 @@ lcdYCoordinate io =
 --   Lines 144 - 153 each take 456 cycles. This is the VBlank period. These lines can't be seen.
 --   Finally, there are 252 cycles before line 0 starts again.
 lcdScanline :: Int -> Int
-lcdScanline elapsedCycles
+lcdScanline currentCycles
     | modCycles <= hBlankCycles = modCycles `div` 20
     | modCycles <= totalCycles  = ((modCycles - hBlankCycles) `div` 456) + 143
     | otherwise                 = 0
@@ -113,5 +113,5 @@ lcdScanline elapsedCycles
         vBlankCycles =  10 * 456
         otherCycles  = 252
         totalCycles  = hBlankCycles + vBlankCycles + otherCycles
-        modCycles    = elapsedCycles `mod` totalCycles
+        modCycles    = currentCycles `mod` totalCycles
 

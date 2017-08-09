@@ -13,6 +13,12 @@ import ShowHex
 import qualified Data.Bits as Bit
 import Data.Word    
 
+-- For reasons I haven't completely figured out yet,
+-- the arguments to the combo register instructions are flipped.
+-- This does NOT affect jump instructions.
+-- TODO: Investigate gameboy endianness.
+
+
 execute :: Opcode -> CPU s Cycles
 execute op = case op of
     0x00 -> nop
