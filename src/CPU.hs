@@ -112,12 +112,12 @@ modifyReg reg f =
 
 readComboReg :: ComboRegister -> CPU s Word16
 readComboReg reg = do
-    let (low, high) = registerPair reg
+    let (high, low) = registerPair reg
     (readReg low) `joinBytesM` (readReg high)
 
 writeComboReg :: ComboRegister -> Word16 -> CPU s ()
 writeComboReg reg w = do
-    let (lowReg, highReg) = registerPair reg
+    let (highReg, lowReg) = registerPair reg
     let (lowByte, highByte) = toBytes w
     writeReg lowReg lowByte
     writeReg highReg highByte
