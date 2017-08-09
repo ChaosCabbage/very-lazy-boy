@@ -1,5 +1,7 @@
 module BitTwiddling (
-    joinBytesM
+    joinBytes
+  , joinBytesM
+  , flipBytes
   , to16
   , to8
   , toBytes
@@ -29,6 +31,11 @@ joinBytes low high =
         high16 = shiftL (to16 high) 8
     in
         high16 + low16
+
+flipBytes :: Word16 -> Word16
+flipBytes w =
+    let (low, high) = toBytes w
+    in joinBytes high low
 
 joinBytesM :: (Monad m) => m Word8 -> m Word8 -> m Word16
 joinBytesM = liftM2 joinBytes

@@ -3,6 +3,7 @@ module CPU.Environment (
   , ComboRegister(..)
   , MemoryBank
   , CPURegister
+  , IOPorts
   , initCPU
   , resumeCPU
   , pauseCPU
@@ -11,14 +12,16 @@ module CPU.Environment (
     
 import CPU.Types
 import CPU.FrozenEnvironment
+import qualified CPU.IORegisters as GBIO
 
 import Data.Word
 import Data.STRef
 import Data.Array.ST
 import Control.Monad.ST as ST
 
-type MemoryBank s = (CPUEnvironment s -> STUArray s Address Word8)
 type CPURegister s w = (CPUEnvironment s -> STRef s w)
+type MemoryBank s = CPUEnvironment s -> STUArray s Address Word8
+type IOPorts s = CPUEnvironment s -> GBIO.IORegisters s
 
 -- The whole state of the CPU and all the memory.
 -- Mutable, for use in the ST monad.
@@ -42,9 +45,11 @@ data CPUEnvironment s = CPUEnvironment {
   , wram0 :: STUArray s Address Word8
   , wram1 :: STUArray s Address Word8
   , oam :: STUArray s Address Word8
-  , ioports :: STUArray s Address Word8
+  , ioports :: GBIO.IORegisters s
   , hram :: STUArray s Address Word8
   , iereg :: STUArray s Address Word8
+  -- Master interrupt flag
+  , ime :: STRef s Bool
 }
 
 initCPU :: Memory -> ST s (CPUEnvironment s)
@@ -59,7 +64,7 @@ resumeCPU state = do
     wram0   <- thaw $ frz_wram0 state
     wram1   <- thaw $ frz_wram1 state
     oam     <- thaw $ frz_oam state
-    ioports <- thaw $ frz_ioports state
+    ioports <- GBIO.thaw $ frz_ioports state
     hram    <- thaw $ frz_hram state
     iereg   <- thaw $ frz_iereg state
     a  <- newSTRef $ frz_a state
@@ -72,11 +77,20 @@ resumeCPU state = do
     l  <- newSTRef $ frz_l state
     sp <- newSTRef $ frz_sp state
     pc <- newSTRef $ frz_pc state
+    ime <- newSTRef $ frz_ime state
     return CPUEnvironment { 
         a = a, f = f, b = b, c = c, d = d, e = e, h = h, l = l, sp = sp, pc = pc 
-      , rom00 = rom00, rom01 = rom01, vram = vram, extram = extram
-      , wram0 = wram0, wram1 = wram1, oam = oam, ioports = ioports, hram = hram
+      , rom00 = rom00
+      , rom01 = rom01
+      , vram = vram
+      , extram = extram
+      , wram0 = wram0
+      , wram1 = wram1
+      , oam = oam
+      , ioports = ioports
+      , hram = hram
       , iereg = iereg
+      , ime = ime
     }
 
 pauseCPU :: CPUEnvironment s -> ST s FrozenCPUEnvironment
@@ -88,7 +102,7 @@ pauseCPU cpu = do
     f_wram0   <- freeze $ wram0 cpu
     f_wram1   <- freeze $ wram1 cpu
     f_oam     <- freeze $ oam cpu
-    f_ioports <- freeze $ ioports cpu
+    f_ioports <- GBIO.freeze $ ioports cpu
     f_hram    <- freeze $ hram cpu
     f_iereg   <- freeze $ iereg cpu
     f_a  <- readSTRef $ a cpu
@@ -101,6 +115,7 @@ pauseCPU cpu = do
     f_l  <- readSTRef $ l cpu
     f_sp <- readSTRef $ sp cpu
     f_pc <- readSTRef $ pc cpu
+    f_ime <- readSTRef $ ime cpu
     return FrozenCPUEnvironment { 
         frz_a = f_a, frz_f = f_f, frz_b = f_b, frz_c = f_c
       , frz_d = f_d, frz_e = f_e, frz_h = f_h, frz_l = f_l
@@ -108,6 +123,7 @@ pauseCPU cpu = do
       , frz_rom00 = f_rom00, frz_rom01 = f_rom01, frz_vram = f_vram, frz_extram = f_extram
       , frz_wram0 = f_wram0, frz_wram1 = f_wram1, frz_oam = f_oam, frz_ioports = f_ioports, frz_hram = f_hram
       , frz_iereg = f_iereg
+      , frz_ime = f_ime
     }
 
 -- Each pair of 8-bit registers can be accessed 

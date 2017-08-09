@@ -38,14 +38,18 @@ but I'm not familiar with any haskell testing frameworks, and anyway, writing a 
 It's pretty simple: If you press enter, run the gameboy one step, then exit the ST monad and freeze the gameboy state.
 On the next step, the state is unfrozen.
 
-Anyway, it turned out that my flag logic had a bug - it turned flags on but never turned them off. Pretty easy to see
-in the debugger.
 
-**Current status:** Let's say 4% complete.
-Tetris is stuck in a loop again, and I think it's because I haven't done interrupts.
-But maybe I'll try drawing some graphics!
+**Current status:** Nearly got my first frame!
 
-**Current questions:** How often do you need to refresh the graphics? Can you get away with once per v-blank, or does it have to
-be once per h-blank?
+- Implemented a mechanism to read and write to IO ports.
+- Implemented interrupts
+- Badly need some tests
+
+Current problem is a crash trying to access 0xFEFF. 
+This is caused by my combo registers having their high and low
+bytes the wrong way around.
+
+**Current questions:**
 I'm concerned that exiting the ST monad too often will impact performance. Maybe the graphics can go _inside_ the ST monad?
 Or maybe I don't have to worry too much. It's only a gameboy, after all.
+Can I 

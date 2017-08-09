@@ -21,15 +21,19 @@ library
                      , CPU.FrozenEnvironment
                      , CPU.Environment
                      , CPU.Instructions
+                     , CPU.Interrupts
                      , CPURunner
+                     , Viewers
   other-modules:       BitTwiddling
                      , ShowHex
                      , CPU.Flags
                      , CPU.Arithmetic
+                     , CPU.IORegisters
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl
                      , bytestring
+                     , cond
   default-language:    Haskell2010
 
 executable gameboy-debugger-exe
