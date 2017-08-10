@@ -2,7 +2,6 @@ module Cartridge (
   romFromFile
   ) where
 
-import Data.Word
 import Data.Array
 import qualified Data.ByteString as BS 
 
