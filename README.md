@@ -28,9 +28,6 @@ Manually writing the monad seems to be the way to go.
 
 Now I've written this CPU monad, it's pretty cool. It's transformed everything into imperative code.
 I need to make sure to avoid spaghetti!
-I've been trying to avoid "do" notation as much as I can. I'd rather figure out the binding functions. It seems easier to figure out what's really going on that way.
-
-I tried to make the internal functions match the gameboy assembler, e.g. there is a `ld` function to handle all the different LD instructions and the arguments are functions to get the source and destination. It's not really working. All the different versions take a different number of cycles so I still have to hack those in. 
 
 There was a point when I could run a lot of instructions, but the emulator crashed when the game tried to access unusable
 memory at 0xFEFF. Clearly something was wrong, but I didn't know what. If I was a good boy, I would be writing unit tests,
@@ -38,18 +35,15 @@ but I'm not familiar with any haskell testing frameworks, and anyway, writing a 
 It's pretty simple: If you press enter, run the gameboy one step, then exit the ST monad and freeze the gameboy state.
 On the next step, the state is unfrozen.
 
-
 **Current status:** Nearly got my first frame!
 
+- Implemented the framework for most instructions. Haven't actually gone and filled them all in.
 - Implemented a mechanism to read and write to IO ports.
-- Implemented interrupts
+- Implemented interrupts.
 - Badly need some tests
 
-Current problem is a crash trying to access 0xFEFF. 
-This is caused by my combo registers having their high and low
-bytes the wrong way around.
+Current problem: Tetris jumps into the ROM1 bank, which I haven't loaded! It `NOP`s for a while and then crashes.
 
 **Current questions:**
 I'm concerned that exiting the ST monad too often will impact performance. Maybe the graphics can go _inside_ the ST monad?
 Or maybe I don't have to worry too much. It's only a gameboy, after all.
-Can I 

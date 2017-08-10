@@ -31,8 +31,8 @@ opTable :: Opcode -> Operation s
 opTable opcode = case opcode of
     0x00 -> Op "NOP"            $ Ary0 $ nop
 --  0x10 -> Op "STOP"
-    0x20 -> Op "JR NZ,0x%02X"   $ Ary1 $ jr NZc
-    0x30 -> Op "JR NC,0x%02X"   $ Ary1 $ jr NCc
+    0x20 -> Op "JR NZ,0x%02X"   $ Ary1 $ jrIf NZc
+    0x30 -> Op "JR NC,0x%02X"   $ Ary1 $ jrIf NCc
 --  ...
     0xE0 -> Op "LDH (0x%02X),A" $ Ary1 $ ldh_a8_reg a
     0xF0 -> Op "LDH A,(0x%02X)" $ Ary1 $ ldh_reg_a8 a
@@ -42,6 +42,7 @@ opTable opcode = case opcode of
     0x21 -> Op "LD HL,0x%04X"   $ Ary2 $ ld_reg_d16 HL
     0x31 -> Op "LD SP,0x%04X"   $ Ary2 $ ld_SP_d16
 --  ...
+    0xB1 -> Op "OR C"           $ Ary0 $ or_reg c
 
 --  ...
     0x32 -> Op "LD (HL-),A"     $ Ary0 $ ld_HLMinus_reg a
@@ -72,6 +73,18 @@ opTable opcode = case opcode of
     0x16 -> Op "LD D,0x%02X"    $ Ary1 $ ld_reg_d8 d
     0x26 -> Op "LD H,0x%02X"    $ Ary1 $ ld_reg_d8 h
     0x36 -> Op "LD (HL),0x%02X" $ Ary1 $ ld_deref_d8 HL
+    
+    0x18 -> Op "JR 0x%02X"      $ Ary1 $ jr
+    0x28 -> Op "JR C,0x%02X"    $ Ary1 $ jrIf Zc
+    0x38 -> Op "JR C,0x%02X"    $ Ary1 $ jrIf Cc
+    0x48 -> Op "LD C,B"         $ Ary0 $ ld_reg_reg c b
+    0x58 -> Op "LD E,B"         $ Ary0 $ ld_reg_reg e b
+    0x68 -> Op "LD L,B"         $ Ary0 $ ld_reg_reg l b
+    0x78 -> Op "LD A,B"         $ Ary0 $ ld_reg_reg a b
+
+    0xC9 -> Op "RET"            $ Ary0 $ ret
+    0xD9 -> Op "RETI"           $ Ary0 $ reti
+
     0xEA -> Op "LD (0x%04X),A"  $ Ary2 $ ld_a16_reg a
     0x2A -> Op "LD A,(HL+)"     $ Ary0 $ ld_A_HLPlus
     0x0B -> Op "DEC BC"         $ Ary0 $ dec16 BC
@@ -187,6 +200,20 @@ jp addr =
     writeReg pc addr >> 
     return 16
 
+-- OR: Or the contents of A with the argument
+-- Flags: Z 0 0 0
+or_d8 :: Word8 -> CPU s Cycles
+or_d8 d8 = do
+    modifyReg a (Bit..|. d8)
+    va <- readReg a
+    setFlags (As (va == 0), Off, Off, Off)
+    return 8
+
+or_reg :: CPURegister s Word8 -> CPU s Cycles
+or_reg reg = 
+    readReg reg >>= or_d8 >> 
+    return 4
+
 -- XOR: Exclusive-or the contents of A with the argument.
 -- Sets flags: Z 0 0 0
 xor :: Word8 -> CPU s Cycles
@@ -198,8 +225,11 @@ xor byte = do
     return 4
 
 -- LD: Load bytes into a destination.
-ld :: (w -> CPU s Cycles) -> w -> CPU s Cycles
-ld = id
+--
+-- Lots of variations of this.
+-- Some are genuine variations, some are because of my data structures. 
+-- (particularly the fact that a ComboRegister is a different type 
+--  from the actual 16 bit registers)
 
 ld_reg_d8 :: CPURegister s Word8 -> Word8 -> CPU s Cycles
 ld_reg_d8 reg d8 = do
@@ -324,19 +354,23 @@ cp byte = do
     return 8
 
 
--- JR: Relative conditional jump
+-- JR: Relative jump
 -- cc is a flag condition. 
 -- e is a *signed* 8-bit number.
+
+jr :: Word8 -> CPU s Cycles
+jr d8 = 
+    modifyReg pc (+ signed) >> return 12
+    where signed = fromIntegral $ toSigned d8
 --
 -- If condition is met, PC := PC + e (12 cycles)
 -- else                 continue     (8 cycles)
-jr :: FlagCondition -> Word8 -> CPU s Cycles
-jr cc byte = 
+jrIf :: FlagCondition -> Word8 -> CPU s Cycles
+jrIf cc d8 = 
     ifM (condition cc)
-        (modifyReg pc (+ signed) >> return 12)
+        (jr d8)
         (return 8)
             
-    where signed = fromIntegral $ toSigned byte
 
 call :: Word16 -> CPU s Cycles
 call a16 = do
@@ -349,6 +383,25 @@ callIf cc addr =
     ifM (condition cc)
         (call addr)
         (return 12)
+
+-- RETurn from a function call.
+ret :: CPU s Cycles 
+ret = do
+    addr <- popFromStack
+    jumpTo addr
+    return 16
+
+retIf :: FlagCondition -> CPU s Cycles
+retIf cc = 
+    ifM (condition cc)
+        (ret >> return 20)
+        (return 8)
+
+-- Return and enable interrupts.
+reti :: CPU s Cycles
+reti = 
+    enableMasterInterrupt >> ret
+    
 
 -- DI: Disable interrupts
 di :: CPU s Cycles
