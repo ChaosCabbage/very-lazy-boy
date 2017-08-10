@@ -22,6 +22,7 @@ module CPU
       , fetch16
       , jumpTo
       , pushOntoStack
+      , popFromStack
 
       , enableMasterInterrupt
       , disableMasterInterrupt
@@ -210,11 +211,19 @@ incrementPC = modifyReg pc (+1)
 -- It starts at the top and moves down the addresses.
 pushOntoStack :: Word16 -> CPU s ()
 pushOntoStack word = do
+    modifyReg sp (subtract 2)
     let (lowByte, highByte) = toBytes word
     addr <- readReg sp
     writeMemory (addr + 0) lowByte
     writeMemory (addr + 1) highByte
-    modifyReg sp (subtract 2)
+
+popFromStack :: CPU s Word16
+popFromStack = do
+    addr <- readReg sp
+    lowByte <- readMemory (addr + 0)
+    highByte <- readMemory (addr + 1)
+    modifyReg sp (+2)
+    return (lowByte `joinBytes` highByte)
 
 fetch :: CPU s Opcode
 fetch = do

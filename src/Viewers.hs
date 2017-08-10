@@ -74,13 +74,11 @@ viewMem :: Address -> FrozenCPUEnvironment -> String
 viewMem address cpu = 
     printf "0x%02X" $ readFrzMemory address cpu
 
+-- Might be able to trace up the stack a bit, 
+-- but there's no way to tell where the base of the stack is.
 viewStack :: FrozenCPUEnvironment -> String
-viewStack cpu =
-    (traceStackFrom 0xFFFE) ++ (showPointer)
+viewStack cpu = 
+    printf "[0x%04X] <- 0x%04X\n" value pointer
     where
         pointer = frz_sp cpu
-        showPointer = printf "[    ] <- 0x%04X\n" pointer
-        traceStackFrom address 
-            | address > pointer = (viewMem16 address cpu) ++ "\n" ++ 
-                                  (traceStackFrom (address - 2))
-            | otherwise = ""
+        value = readMem16 pointer cpu
