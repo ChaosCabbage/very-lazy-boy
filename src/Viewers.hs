@@ -5,6 +5,7 @@ module Viewers (
   , viewMem16
 ) where
 
+import qualified CPU.Instructions as Ops
 import CPU.FrozenEnvironment (FrozenCPUEnvironment(..), readFrzMemory)
 import CPU.Types (Address)
 import BitTwiddling (joinBytes)
@@ -32,7 +33,23 @@ viewCPU cpu =
     ("                  IME: " ++ (if frz_ime cpu then "ENABLED" else "DISABLED")) ++ "\n" ++
     (viewFlags $ frz_f cpu) ++
     "\n" ++
-    (printf "PC = 0x%04X (0x%02X)\n" (frz_pc cpu) (frz_rom00 cpu ! (frz_pc cpu)))
+    (peekInstruction cpu)
+
+peekInstruction :: FrozenCPUEnvironment -> String
+peekInstruction cpu = 
+    let pointer = frz_pc cpu
+        opcode = readFrzMemory pointer cpu
+        arg1 = readFrzMemory (pointer+1) cpu
+        arg2 = readFrzMemory (pointer+2) cpu
+        op = Ops.opTable opcode
+        template = Ops.label op
+        label = case (Ops.instruction op) of
+            (Ops.Ary0 _) -> template
+            (Ops.Ary1 _) -> printf template arg1
+            (Ops.Ary2 _) -> printf template (arg1 `joinBytes` arg2)
+    in 
+        printf "PC = 0x%04X (%s)\n" pointer label
+
 
 viewFlags :: Word8 -> String
 viewFlags f = 

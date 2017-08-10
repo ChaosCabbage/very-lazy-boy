@@ -1,5 +1,9 @@
 module CPU.Instructions (
-    execute
+    Instruction(..)
+  , label
+  , execute
+  , instruction
+  , opTable
     ) where
 
 import BitTwiddling
@@ -9,46 +13,53 @@ import CPU.Flags
 import CPU.Arithmetic
 import CPU
 import ShowHex
-
 import qualified Data.Bits as Bit
 import Data.Word    
 
--- For reasons I haven't completely figured out yet,
--- the arguments to the combo register instructions are flipped.
--- This does NOT affect jump instructions.
--- TODO: Investigate gameboy endianness.
+-- Instructions can have either 0, 1 or 2 bytes as arguments.
+data Instruction s = Ary0 (CPU s Cycles)
+                   | Ary1 (Word8 -> CPU s Cycles)
+                   | Ary2 (Word16 -> CPU s Cycles)
 
+data Operation s = Op { 
+    label :: String, 
+    instruction :: Instruction s 
+}
 
-execute :: Opcode -> CPU s Cycles
-execute op = case op of
-    0x00 -> nop
-    0x01 -> ld (directToCombo BC) =<< fetch16  -- LD BC,d16
-    0x05 -> dec b                              -- DEC B
-    0x06 -> ld (direct b) =<< fetch            -- LD B,d8
-    0x0D -> dec c                              -- DEC C
-    0x0E -> ld (direct c) =<< fetch            -- LD C,d8
-    0x20 -> jr NZc =<< fetch                   -- JR NZ,r8
-    0x21 -> ld (directToCombo HL) =<< fetch16  -- LD HL,d16
-    0x31 -> ld (direct16 sp) =<< fetch16       -- LD SP,d16
-    0x32 -> ld (derefMinus HL) =<< readReg a   -- LD (HL-),A 
-    0x3E -> ld (direct a) =<< fetch            -- LD A,d8
-    0x36 -> (ld (deref HL) =<< fetch) >> return 12    -- LD (HL),d8
-    0xAF -> xor =<< readReg a                  -- XOR A
-    0xC3 -> jp =<< fetch16                     -- JP d16
-    0xE0 -> ldh_a8_a                           -- LDH (a8),A
-    0xEA -> ld derefImmediate =<< readReg a    -- LD (a16),A 
-    0xF0 -> ldh_a_a8                           -- LDH A,(a8)
-    0xFE -> cp =<< fetch                       -- CP d8
-    0xF3 -> di                                 -- DI
-    _    -> error $ "Unknown opcode " ++ (showHex op)
+opTable :: Opcode -> Operation s
+opTable opcode = case opcode of
+    0x00 -> Op "NOP"            $ Ary0 $ nop
+    0x01 -> Op "LD BC,0x%04X"   $ Ary2 $ ld (directToCombo BC)
+    0x05 -> Op "DEC B"          $ Ary0 $ dec b
+    0x06 -> Op "LD B,0x%02X"    $ Ary1 $ ld (direct b)
+    0x0D -> Op "DEC C"          $ Ary0 $ dec c
+    0x0E -> Op "LD C,0x%02X"    $ Ary1 $ ld (direct c)
+    0x20 -> Op "JR NZ,0x%02X"   $ Ary1 $ jr NZc
+    0x21 -> Op "LD HL,0x%04X"   $ Ary2 $ ld (directToCombo HL)
+    0x31 -> Op "LD SP,0x%04X"   $ Ary2 $ ld (direct16 sp)
+    0x32 -> Op "LD (HL-),A"     $ Ary0 $ ld (derefMinus HL) =<< readReg a
+    0x3E -> Op "LD A,0x%02X"    $ Ary1 $ ld (direct a)
+    0x36 -> Op "LD (HL),0x%02X" $ Ary1 $ ld_deref_d8 HL
+    0xAF -> Op "XOR A"          $ Ary0 $ xor =<< readReg a
+    0xC3 -> Op "JP 0x%04X"      $ Ary2 $ jp
+    0xE0 -> Op "LDH (0x%02X),A" $ Ary1 $ ldh_a8_reg a
+    0xEA -> Op "LD (0x%04X),A"  $ Ary2 $ ld_a16_reg a
+    0xF0 -> Op "LDH A,(0x%02X)" $ Ary1 $ ldh_reg_a8 a
+    0xFE -> Op "CP 0x%02X"      $ Ary1 $ cp
+    0xF3 -> Op "DI"             $ Ary0 $ di
+    _    -> error $ "Unknown opcode " ++ (showHex opcode)
 
+execute :: Instruction s -> CPU s Cycles
+execute (Ary0 op) = op
+execute (Ary1 op) = fetch >>= op
+execute (Ary2 op) = fetch16 >>= op
 
 -- Flag conditions, for instructions such as "JP NZ,A"
 
 data FlagCondition = Cc | NCc | Zc | NZc | Any
 
 condition :: FlagCondition -> CPU s Bool
-condition f = case f of
+condition fc = case fc of
     Cc  -> readFlag C
     NCc -> fmap not (readFlag C)
     Zc  -> readFlag Z
@@ -81,17 +92,10 @@ derefMinus reg w = do
     writeComboReg reg (addr - 1)
     return 8
 
-deref :: ComboRegister -> Word8 -> CPU s Cycles
-deref reg w = do
+derefWrite :: ComboRegister -> Word8 -> CPU s ()
+derefWrite reg w = do
     addr <- readComboReg reg
     writeMemory addr w
-    return 8
-
-derefImmediate :: Word8 -> CPU s Cycles
-derefImmediate w = do
-    addr <- fetch16
-    writeMemory addr w
-    return 16
 
 -- NOP: Blissfully let life pass you by.
 nop :: CPU s Cycles
@@ -117,27 +121,33 @@ xor byte = do
 ld :: (w -> CPU s Cycles) -> w -> CPU s Cycles
 ld = id
 
--- LDH (a8),A: 
--- Load the contents of A into address (a8 + 0xFF00)
--- Cheated a bit in defining this. It should take a destination function like the others.
-ldh_a8_a :: CPU s Cycles
-ldh_a8_a = do
-    a8 <- fetch
-    let addr = 0xFF00 + (fromIntegral a8 :: Word16)
-    a <- readReg a
-    writeMemory addr a
+ld_deref_d8 :: ComboRegister -> Word8 -> CPU s Cycles
+ld_deref_d8 reg w8 = do
+    derefWrite reg w8
     return 12
 
--- LDH A,(a8): 
--- Load the contents of (a8 + 0xFF00) into A
--- Cheated a bit in defining this. It should take a destination function like the others.
-ldh_a_a8 :: CPU s Cycles
-ldh_a_a8 = do
-    a8 <- fetch
+-- LDH (a8),reg: 
+-- Load the contents of register into address (a8 + 0xFF00)
+ldh_a8_reg :: CPURegister s Word8 -> Word8 -> CPU s Cycles
+ldh_a8_reg reg a8 = do
     let addr = 0xFF00 + (fromIntegral a8 :: Word16)
-    v <- readMemory addr
-    writeReg a v
+    readReg reg >>= writeMemory addr
     return 12
+
+-- LDH register,(a8): 
+-- Load the contents of (a8 + 0xFF00) into register
+ldh_reg_a8 :: CPURegister s Word8 -> Word8 -> CPU s Cycles
+ldh_reg_a8 reg a8 = do
+    let addr = 0xFF00 + (fromIntegral a8 :: Word16)
+    readMemory addr >>= writeReg reg
+    return 12
+
+-- LD (a16),reg:
+-- Load the contents of reg into the address (a16)
+ld_a16_reg :: CPURegister s Word8 -> Word16 -> CPU s Cycles
+ld_a16_reg reg a16 = do
+    readReg reg >>= writeMemory a16
+    return 16
 
 -- DEC: Decrease a register or memory location by 1
 -- Currently just the 8-bit registers.

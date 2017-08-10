@@ -16,7 +16,8 @@ runCPUTest f rom = runST $ initCPU rom >>= runCPU f
 
 step :: CPU s Cycles
 step = do
-    cycles <- (fetch >>= execute)
+    op <- instruction.opTable <$> fetch
+    cycles <- execute op
     updateMachineTicks cycles
     runInterrupts
     return cycles
