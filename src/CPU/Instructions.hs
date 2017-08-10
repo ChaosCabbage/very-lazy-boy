@@ -30,35 +30,35 @@ data Operation s = Op {
 opTable :: Opcode -> Operation s
 opTable opcode = case opcode of
     0x00 -> Op "NOP"            $ Ary0 $ nop
-    0x01 -> Op "LD BC,0x%04X"   $ Ary2 $ ld (directToCombo BC)
-    0x05 -> Op "DEC B"          $ Ary0 $ dec b
-    0x06 -> Op "LD B,0x%02X"    $ Ary1 $ ld (direct b)
-    0x0B -> Op "DEC BC"         $ Ary0 $ dec16 BC
-    0x0C -> Op "INC C"          $ Ary0 $ inc c
-    0x0D -> Op "DEC C"          $ Ary0 $ dec c
-    0x0E -> Op "LD C,0x%02X"    $ Ary1 $ ld (direct c)
-    0x1B -> Op "DEC DE"         $ Ary0 $ dec16 DE
     0x20 -> Op "JR NZ,0x%02X"   $ Ary1 $ jr NZc
+    0xE0 -> Op "LDH (0x%02X),A" $ Ary1 $ ldh_a8_reg a
+    0xF0 -> Op "LDH A,(0x%02X)" $ Ary1 $ ldh_reg_a8 a
+    0x01 -> Op "LD BC,0x%04X"   $ Ary2 $ ld (directToCombo BC)
     0x21 -> Op "LD HL,0x%04X"   $ Ary2 $ ld (directToCombo HL)
-    0x2A -> Op "LD A,(HL+)"     $ Ary0 $ ld_A_HLPlus
-    0x2B -> Op "DEC HL"         $ Ary0 $ dec16 HL
     0x31 -> Op "LD SP,0x%04X"   $ Ary2 $ ld (direct16 sp)
     0x32 -> Op "LD (HL-),A"     $ Ary0 $ ld (derefMinus HL) =<< readReg a
-    0x36 -> Op "LD (HL),0x%02X" $ Ary1 $ ld_deref_d8 HL
-    0x3B -> Op "DEC SP"         $ Ary0 $ decSP
-    0x3E -> Op "LD A,0x%02X"    $ Ary1 $ ld (direct a)
-    0xAF -> Op "XOR A"          $ Ary0 $ xor =<< readReg a
-    0xC3 -> Op "JP 0x%04X"      $ Ary2 $ jp
-    0xCC -> Op "CALL Z,0x%04X"  $ Ary2 $ callIf Zc
-    0xCD -> Op "CALL 0x%04X"    $ Ary2 $ call
-    0xDC -> Op "CALL C,0x%04X"  $ Ary2 $ callIf Cc
-    0xE0 -> Op "LDH (0x%02X),A" $ Ary1 $ ldh_a8_reg a
     0xE2 -> Op "LD (C),A"       $ Ary0 $ ld_highC_A
-    0xEA -> Op "LD (0x%04X),A"  $ Ary2 $ ld_a16_reg a
     0xF2 -> Op "LD A,(C)"       $ Ary0 $ ld_A_highC     
-    0xF0 -> Op "LDH A,(0x%02X)" $ Ary1 $ ldh_reg_a8 a
-    0xFE -> Op "CP 0x%02X"      $ Ary1 $ cp
+    0xC3 -> Op "JP 0x%04X"      $ Ary2 $ jp
     0xF3 -> Op "DI"             $ Ary0 $ di
+    0x05 -> Op "DEC B"          $ Ary0 $ dec b
+    0x06 -> Op "LD B,0x%02X"    $ Ary1 $ ld (direct b)
+    0x36 -> Op "LD (HL),0x%02X" $ Ary1 $ ld_deref_d8 HL
+    0xEA -> Op "LD (0x%04X),A"  $ Ary2 $ ld_a16_reg a
+    0x2A -> Op "LD A,(HL+)"     $ Ary0 $ ld_A_HLPlus
+    0x0B -> Op "DEC BC"         $ Ary0 $ dec16 BC
+    0x1B -> Op "DEC DE"         $ Ary0 $ dec16 DE
+    0x2B -> Op "DEC HL"         $ Ary0 $ dec16 HL
+    0x3B -> Op "DEC SP"         $ Ary0 $ decSP
+    0x0C -> Op "INC C"          $ Ary0 $ inc c
+    0xCC -> Op "CALL Z,0x%04X"  $ Ary2 $ callIf Zc
+    0xDC -> Op "CALL C,0x%04X"  $ Ary2 $ callIf Cc
+    0x0D -> Op "DEC C"          $ Ary0 $ dec c
+    0xCD -> Op "CALL 0x%04X"    $ Ary2 $ call
+    0x0E -> Op "LD C,0x%02X"    $ Ary1 $ ld (direct c)
+    0x3E -> Op "LD A,0x%02X"    $ Ary1 $ ld (direct a)
+    0xFE -> Op "CP 0x%02X"      $ Ary1 $ cp
+    0xAF -> Op "XOR A"          $ Ary0 $ xor =<< readReg a
     _    -> error $ "Unknown opcode " ++ (showHex opcode)
 
 execute :: Instruction s -> CPU s Cycles
