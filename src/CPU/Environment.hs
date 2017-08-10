@@ -4,7 +4,6 @@ module CPU.Environment (
   , MemoryBank
   , CPURegister
   , IOPorts
-  , initCPU
   , resumeCPU
   , pauseCPU
   , registerPair
@@ -51,9 +50,6 @@ data CPUEnvironment s = CPUEnvironment {
   -- Master interrupt flag
   , ime :: STRef s Bool
 }
-
-initCPU :: Memory -> ST s (CPUEnvironment s)
-initCPU rom = resumeCPU $ defaultCPU { frz_rom00 = rom }
 
 resumeCPU :: FrozenCPUEnvironment -> ST s (CPUEnvironment s)
 resumeCPU state = do

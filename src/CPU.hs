@@ -4,7 +4,6 @@ module CPU
     ( 
         CPU
       , runCPU
-      , initCPU
 
       , updateMachineTicks
 

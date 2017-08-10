@@ -99,6 +99,5 @@ dumpVRAM  env = do
 
 main :: IO ()
 main = do
-    rom <- romFromFile
-    let cpuState = defaultCPU { frz_rom00 = rom }
+    cpuState <- initCPU <$> romFromFile
     stepper cpuState 0

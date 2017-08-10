@@ -1,6 +1,7 @@
 module CPU.FrozenEnvironment (
     FrozenCPUEnvironment(..)
   , defaultCPU
+  , initCPU
   , readFrzMemory
     ) where
 
@@ -40,6 +41,12 @@ data FrozenCPUEnvironment = FrozenCPUEnvironment {
   -- Master interrupt flag
   , frz_ime :: Bool
 } deriving (Show)
+
+initCPU :: [Memory] -> FrozenCPUEnvironment
+initCPU romBanks = defaultCPU {
+    frz_rom00 = romBanks !! 0
+  , frz_rom01 = romBanks !! 1
+}
 
 defaultCPU :: FrozenCPUEnvironment
 defaultCPU = FrozenCPUEnvironment {
