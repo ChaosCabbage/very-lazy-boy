@@ -30,19 +30,47 @@ data Operation s = Op {
 opTable :: Opcode -> Operation s
 opTable opcode = case opcode of
     0x00 -> Op "NOP"            $ Ary0 $ nop
+--  0x10 -> Op "STOP"
     0x20 -> Op "JR NZ,0x%02X"   $ Ary1 $ jr NZc
+    0x30 -> Op "JR NC,0x%02X"   $ Ary1 $ jr NCc
+--  ...
     0xE0 -> Op "LDH (0x%02X),A" $ Ary1 $ ldh_a8_reg a
     0xF0 -> Op "LDH A,(0x%02X)" $ Ary1 $ ldh_reg_a8 a
-    0x01 -> Op "LD BC,0x%04X"   $ Ary2 $ ld (directToCombo BC)
-    0x21 -> Op "LD HL,0x%04X"   $ Ary2 $ ld (directToCombo HL)
-    0x31 -> Op "LD SP,0x%04X"   $ Ary2 $ ld (direct16 sp)
-    0x32 -> Op "LD (HL-),A"     $ Ary0 $ ld (derefMinus HL) =<< readReg a
+
+    0x01 -> Op "LD BC,0x%04X"   $ Ary2 $ ld_reg_d16 BC
+    0x11 -> Op "LD DE,0x%04X"   $ Ary2 $ ld_reg_d16 DE
+    0x21 -> Op "LD HL,0x%04X"   $ Ary2 $ ld_reg_d16 HL
+    0x31 -> Op "LD SP,0x%04X"   $ Ary2 $ ld_SP_d16
+--  ...
+
+--  ...
+    0x32 -> Op "LD (HL-),A"     $ Ary0 $ ld_HLMinus_reg a
+--  ...
     0xE2 -> Op "LD (C),A"       $ Ary0 $ ld_highC_A
     0xF2 -> Op "LD A,(C)"       $ Ary0 $ ld_A_highC     
+
+    0x03 -> Op "INC BC"         $ Ary0 $ inc16 BC
+    0x13 -> Op "INC DE"         $ Ary0 $ inc16 DE
+    0x23 -> Op "INC HL"         $ Ary0 $ inc16 HL
+    0x33 -> Op "INC SP"         $ Ary0 $ incSP
+--  ...
     0xC3 -> Op "JP 0x%04X"      $ Ary2 $ jp
+--  0xD3    NOT USED
+--  0xE3    NOT USED
     0xF3 -> Op "DI"             $ Ary0 $ di
+    0x04 -> Op "INC B"          $ Ary0 $ inc b
+    0x14 -> Op "INC D"          $ Ary0 $ inc d
+    0x24 -> Op "INC H"          $ Ary0 $ inc h
+    0x34 -> Op "INC (HL)"       $ Ary0 $ incDeref HL
+
     0x05 -> Op "DEC B"          $ Ary0 $ dec b
-    0x06 -> Op "LD B,0x%02X"    $ Ary1 $ ld (direct b)
+    0x15 -> Op "DEC D"          $ Ary0 $ dec d
+    0x25 -> Op "DEC H"          $ Ary0 $ dec h
+    0x35 -> Op "DEC HL"         $ Ary0 $ decDeref HL
+
+    0x06 -> Op "LD B,0x%02X"    $ Ary1 $ ld_reg_d8 b
+    0x16 -> Op "LD D,0x%02X"    $ Ary1 $ ld_reg_d8 d
+    0x26 -> Op "LD H,0x%02X"    $ Ary1 $ ld_reg_d8 h
     0x36 -> Op "LD (HL),0x%02X" $ Ary1 $ ld_deref_d8 HL
     0xEA -> Op "LD (0x%04X),A"  $ Ary2 $ ld_a16_reg a
     0x2A -> Op "LD A,(HL+)"     $ Ary0 $ ld_A_HLPlus
@@ -55,8 +83,8 @@ opTable opcode = case opcode of
     0xDC -> Op "CALL C,0x%04X"  $ Ary2 $ callIf Cc
     0x0D -> Op "DEC C"          $ Ary0 $ dec c
     0xCD -> Op "CALL 0x%04X"    $ Ary2 $ call
-    0x0E -> Op "LD C,0x%02X"    $ Ary1 $ ld (direct c)
-    0x3E -> Op "LD A,0x%02X"    $ Ary1 $ ld (direct a)
+    0x0E -> Op "LD C,0x%02X"    $ Ary1 $ ld_reg_d8 c
+    0x3E -> Op "LD A,0x%02X"    $ Ary1 $ ld_reg_d8 a
     0xFE -> Op "CP 0x%02X"      $ Ary1 $ cp
     0xAF -> Op "XOR A"          $ Ary0 $ xor =<< readReg a
     _    -> error $ "Unknown opcode " ++ (showHex opcode)
@@ -79,39 +107,68 @@ condition fc = case fc of
     Any -> return True
 
 -- Functions for loading to different destinations
-direct :: CPURegister s Word8 -> Word8 -> CPU s Cycles
-direct reg w =
-    writeReg reg w >>
+
+-- Write the contents of a register into a memory address.
+-- The pointer is monadic, because in some cases the pointer
+-- is incremented or decremented at the same time.
+writeRegToPointer :: CPURegister s Word8 -> CPU s Address -> CPU s Cycles
+writeRegToPointer reg pointer = do
+    addr <- pointer
+    readReg reg >>= writeMemory addr
+    return 8 
+
+-- Write the contents of a memory address into a register
+-- See comment above about the monadic address.
+writePointerToReg :: CPURegister s Word8 -> CPU s Address -> CPU s Cycles
+writePointerToReg reg pointer =
+    pointer >>= readMemory >>= writeReg reg >> 
     return 8
 
-direct16 :: CPURegister s Word16 -> (Word16 -> CPU s Cycles)
-direct16 reg w = 
-    writeReg reg w >>
-    return 12
-
-directToCombo :: ComboRegister -> (Word16 -> CPU s Cycles)
-directToCombo reg = \w ->
-    writeComboReg reg w >> 
+ld_reg_d16 :: ComboRegister -> Word16 -> CPU s Cycles
+ld_reg_d16 reg d16 =
+    writeComboReg reg d16 >> 
     return 12 
 
--- e.g. LD (HL-) instructions.
--- Dereference the register, write the value to the address,
--- then decrement the register.
-derefMinus :: ComboRegister -> Word8 -> CPU s Cycles
-derefMinus reg w = do
+ld_SP_d16 :: Word16 -> CPU s Cycles
+ld_SP_d16 d16 =
+    writeReg sp d16 >> 
+    return 12
+
+ld_HLMinus_reg :: CPURegister s Word8 -> CPU s Cycles
+ld_HLMinus_reg reg = 
+    writeRegToPointer reg (pointerMinus HL)
+
+ld_HLPlus_reg :: CPURegister s Word8 -> CPU s Cycles
+ld_HLPlus_reg reg =
+    writeRegToPointer reg (pointerPlus HL)
+
+-- For e.g. LD (HL-) instructions.
+-- Get the address pointed to by the register, then decrement the register.
+pointerMinus :: ComboRegister -> CPU s Address
+pointerMinus reg = do
     addr <- readComboReg reg
-    writeMemory addr w
     modifyComboReg reg (subtract 1)
-    return 8
+    return addr
+
+-- e.g. LD (HL+) instructions
+pointerPlus :: ComboRegister -> CPU s Address
+pointerPlus reg = do
+    addr <- readComboReg reg
+    modifyComboReg reg (+ 1)
+    return addr
 
 derefWrite :: ComboRegister -> Word8 -> CPU s ()
-derefWrite reg w = do
-    addr <- readComboReg reg
-    writeMemory addr w
+derefWrite reg d8 = do
+    addr <- readComboReg reg 
+    writeMemory addr d8 
 
-derefRead :: ComboRegister -> CPU s Word8
-derefRead reg = 
-    readComboReg reg >>= readMemory
+deref :: ComboRegister -> CPU s Word8
+deref reg =
+    readComboReg reg >>= readMemory 
+
+derefModify :: ComboRegister -> (Word8 -> Word8) -> CPU s ()
+derefModify reg modifier =
+    (modifier <$> deref reg) >>= derefWrite reg
 
 -- Several instructions add 0xFF00 to their argument
 -- to get an address.
@@ -136,13 +193,23 @@ xor :: Word8 -> CPU s Cycles
 xor byte = do
     modifyReg a (Bit.xor byte) 
     -- Set the flags.
-    a <- readReg a
-    setFlags (As (a == 0), Off, Off, Off)
+    va <- readReg a
+    setFlags (As (va == 0), Off, Off, Off)
     return 4
 
 -- LD: Load bytes into a destination.
 ld :: (w -> CPU s Cycles) -> w -> CPU s Cycles
 ld = id
+
+ld_reg_d8 :: CPURegister s Word8 -> Word8 -> CPU s Cycles
+ld_reg_d8 reg d8 = do
+    writeReg reg d8 
+    return 8
+
+ld_reg_reg :: CPURegister s Word8 -> CPURegister s Word8 -> CPU s Cycles
+ld_reg_reg to from = do
+    readReg from >>= writeReg to
+    return 4
 
 ld_deref_d8 :: ComboRegister -> Word8 -> CPU s Cycles
 ld_deref_d8 reg w8 = do
@@ -175,10 +242,8 @@ ld_a16_reg reg a16 = do
 -- LD A,(HL+)
 -- Dereference HL, write the value to A, and then increment HL
 ld_A_HLPlus :: CPU s Cycles
-ld_A_HLPlus = do
-    derefRead HL >>= writeReg a
-    modifyComboReg HL (+1)
-    return 8
+ld_A_HLPlus = 
+    writePointerToReg a (pointerPlus HL)
 
 -- LD (C),A
 ld_highC_A :: CPU s Cycles
@@ -215,6 +280,14 @@ decSP = do
     modifyReg sp (subtract 1)
     return 8
 
+-- Flags Z 1 H -
+decDeref :: ComboRegister -> CPU s Cycles
+decDeref reg = do
+    derefModify reg (subtract 1)
+    v <- readComboReg reg
+    setFlags (As (v == 0), On, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    return 12
+
 -- Flags: Z 0 H -
 inc :: CPURegister s Word8 -> CPU s Cycles
 inc reg = do
@@ -223,13 +296,31 @@ inc reg = do
     setFlags (As (v == 0), Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
     return 4
 
+inc16 :: ComboRegister -> CPU s Cycles
+inc16 reg = do
+    modifyComboReg reg (+1)
+    return 8
+
+incSP :: CPU s Cycles
+incSP = do
+    modifyReg sp (+1)
+    return 8
+
+-- Flags Z 0 H -
+incDeref :: ComboRegister -> CPU s Cycles
+incDeref reg = do
+    derefModify reg (+ 1)
+    v <- readComboReg reg
+    setFlags (As (v == 0), Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    return 12
+
 -- CP: Compare with A to set flags.
 -- Flags: Z 1 H C
 cp :: Word8 -> CPU s Cycles
 cp byte = do
-    a <- readReg a
-    let (result, c) = carriedSubtract a byte 
-    setFlags (As (result == 0), On, Off, As c)
+    av <- readReg a
+    let (result, cv) = carriedSubtract av byte 
+    setFlags (As (result == 0), On, Off, As cv)
     return 8
 
 
