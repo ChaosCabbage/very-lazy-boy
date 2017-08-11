@@ -47,6 +47,7 @@ peekInstruction cpu =
             (Ops.Ary0 _) -> template
             (Ops.Ary1 _) -> printf template arg1
             (Ops.Ary2 _) -> printf template (arg1 `joinBytes` arg2)
+            (Ops.Unimplemented) -> printf "Unimplemented instruction: 0x%02X" opcode
     in 
         printf "PC = 0x%04X (%s)\n" pointer label
 
