@@ -12,7 +12,6 @@ import BitTwiddling (joinBytes)
 import Text.Printf (printf)
 import Data.Word (Word8, Word16)
 import Data.Bits (testBit)
-import Data.Array ((!))
 
 -- A basic view showing the registers, flags and the next instruction:
 --

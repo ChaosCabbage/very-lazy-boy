@@ -39,7 +39,7 @@ opTable opcode = case opcode of
     0x70 -> Op "LD (HL),B"      $ ld_deref_reg HL b
     0x80 -> Op "ADD A,B"        $ Unimplemented
     0x90 -> Op "SUB B"          $ Unimplemented
-    0xA0 -> Op "AND B"          $ Unimplemented
+    0xA0 -> Op "AND B"          $ and_reg b
     0xB0 -> Op "OR B"           $ Unimplemented
     0xC0 -> Op "RET NZ"         $ retIf NZc
     0xD0 -> Op "RET NC"         $ retIf NCc
@@ -55,7 +55,7 @@ opTable opcode = case opcode of
     0x71 -> Op "LD (HL),C"      $ ld_deref_reg HL c
     0x81 -> Op "ADD A,C"        $ Unimplemented
     0x91 -> Op "SUB C"          $ Unimplemented
-    0xA1 -> Op "AND C"          $ Unimplemented
+    0xA1 -> Op "AND C"          $ and_reg c
     0xB1 -> Op "OR C"           $ or_reg c    
     0xC1 -> Op "POP BC"         $ pop BC
     0xD1 -> Op "POP DE"         $ pop DE
@@ -71,8 +71,8 @@ opTable opcode = case opcode of
     0x72 -> Op "LD (HL),D"      $ ld_deref_reg HL d
     0x82 -> Op "ADD A,D"        $ Unimplemented
     0x92 -> Op "SUB D"          $ Unimplemented
-    0xA2 -> Op "AND D"          $ Unimplemented
-    0xB2 -> Op "OR D"           $ Unimplemented
+    0xA2 -> Op "AND D"          $ and_reg d
+    0xB2 -> Op "OR D"           $ or_reg d
     0xC2 -> Op "JP NZ,0x%04X"   $ jpIf NZc
     0xD2 -> Op "JP NC,0x%04X"   $ jpIf NCc
     0xE2 -> Op "LD (C),A"       $ ld_highC_A
@@ -87,7 +87,7 @@ opTable opcode = case opcode of
     0x73 -> Op "LD (HL),E"      $ ld_deref_reg HL e
     0x83 -> Op "ADD A,E"        $ Unimplemented
     0x93 -> Op "SUB E"          $ Unimplemented
-    0xA3 -> Op "AND E"          $ Unimplemented
+    0xA3 -> Op "AND E"          $ and_reg e
     0xB3 -> Op "OR E"           $ or_reg e
     0xC3 -> Op "JP 0x%04X"      $ jp
     0xD3 -> Op "NOT USED"       $ Unimplemented
@@ -119,7 +119,7 @@ opTable opcode = case opcode of
     0x75 -> Op "LD (HL),L"      $ ld_deref_reg HL l
     0x85 -> Op "ADD A,L"        $ Unimplemented
     0x95 -> Op "SUB L"          $ Unimplemented
-    0xA5 -> Op "AND L"          $ Unimplemented
+    0xA5 -> Op "AND L"          $ and_reg l
     0xB5 -> Op "OR L"           $ or_reg l
     0xC5 -> Op "PUSH BC"        $ push BC
     0xD5 -> Op "PUSH DE"        $ push DE
@@ -135,11 +135,11 @@ opTable opcode = case opcode of
     0x76 -> Op "HALT"           $ Unimplemented
     0x86 -> Op "ADD A,(HL)"     $ Unimplemented
     0x96 -> Op "SUB (HL)"       $ Unimplemented
-    0xA6 -> Op "AND (HL)"       $ Unimplemented
+    0xA6 -> Op "AND (HL)"       $ and_deref HL
     0xB6 -> Op "OR (HL)"        $ Unimplemented
     0xC6 -> Op "ADD A,0x%02X"   $ Unimplemented
     0xD6 -> Op "SUB 0x%02X"     $ Unimplemented
-    0xE6 -> Op "AND 0x%02X"     $ Unimplemented
+    0xE6 -> Op "AND 0x%02X"     $ and_d8
     0xF6 -> Op "OR 0x%02X"      $ or_d8
     0x07 -> Op "RLCA"           $ Unimplemented
     0x17 -> Op "RLA"            $ Unimplemented
@@ -151,7 +151,7 @@ opTable opcode = case opcode of
     0x77 -> Op "LD (HL),A"      $ ld_deref_reg HL a
     0x87 -> Op "ADD A,A"        $ Unimplemented
     0x97 -> Op "SUB A"          $ Unimplemented
-    0xA7 -> Op "AND A"          $ Unimplemented
+    0xA7 -> Op "AND A"          $ and_reg a
     0xB7 -> Op "OR A"           $ or_reg a
     0xC7 -> Op "RST 00H"        $ rst 0x00
     0xD7 -> Op "RST 10H"        $ rst 0x10
@@ -373,6 +373,29 @@ jpIf cc = Ary2 $ \addr ->
     ifM (condition cc)
         (jumpTo addr >> return 16)
         (return 12)
+
+-- AND: Bitwise and the contents of A with the argument.
+-- Flags: Z 0 1 0
+andWithA :: Word8 -> CPU s ()
+andWithA d8 = do
+    modifyReg a (Bit..&. d8)
+    va <- readReg a
+    setFlags (As (va == 0), Off, On, Off)
+
+and_reg :: CPURegister s Word8 -> Instruction s
+and_reg reg = Ary0 $ do
+    readReg reg >>= andWithA
+    return 4
+
+and_d8 :: Instruction s
+and_d8 = Ary1 $ \d8 -> do
+    andWithA d8
+    return 8
+
+and_deref :: ComboRegister -> Instruction s
+and_deref reg = Ary0 $ do
+    deref reg >>= andWithA
+    return 8
 
 -- OR: Or the contents of A with the argument
 -- Flags: Z 0 0 0
