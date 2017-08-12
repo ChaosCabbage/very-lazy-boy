@@ -40,7 +40,7 @@ opTable opcode = case opcode of
     0x80 -> Op "ADD A,B"        $ Unimplemented
     0x90 -> Op "SUB B"          $ Unimplemented
     0xA0 -> Op "AND B"          $ and_reg b
-    0xB0 -> Op "OR B"           $ Unimplemented
+    0xB0 -> Op "OR B"           $ or_reg b
     0xC0 -> Op "RET NZ"         $ retIf NZc
     0xD0 -> Op "RET NC"         $ retIf NCc
     0xE0 -> Op "LDH (0x%02X),A" $ ldh_a8_reg a
@@ -217,7 +217,7 @@ opTable opcode = case opcode of
     0x9B -> Op "SBC A,E"        $ Unimplemented
     0xAB -> Op "XOR E"          $ xor_reg e
     0xBB -> Op "CP E"           $ cp_reg e
-    0xCB -> Op "PREFIX CB"      $ Unimplemented
+    0xCB -> Op "CB (%02X)"      $ cb
     0xDB -> Op "NOT USED"       $ Unimplemented
     0xEB -> Op "NOT USED"       $ Unimplemented
     0xFB -> Op "EI"             $ ei
@@ -287,6 +287,20 @@ opTable opcode = case opcode of
     0xFF -> Op "RST 38H"        $ rst 0x38
     _    -> Op "???" Unimplemented
 
+-- The extended instruction set.
+-- Opcode CB means the next op comes from here.
+cbTable :: Opcode -> Operation s
+cbTable opcode = case opcode of
+    0x37 -> Op "SWAP A" $ swap_reg a
+    _    -> Op "???" Unimplemented
+
+-- Not quite sure about how to get the descriptions
+-- of the extended instructions
+-- back up to the debugger with the current structure.
+cb :: Instruction s
+cb = Ary1 $ execute . instruction . cbTable 
+
+
 execute :: Instruction s -> CPU s Cycles
 execute (Ary0 op) = op
 execute (Ary1 op) = fetch >>= op
@@ -304,6 +318,11 @@ condition fc = case fc of
     Zc  -> readFlag Z
     NZc -> fmap not (readFlag Z)
     Any -> return True
+
+
+setZFlag :: CPU s Word8 -> CPU s ()
+setZFlag =
+    (setFlagM Z) . (fmap (==0)) 
 
 -- Functions for loading to different destinations
 
@@ -379,8 +398,8 @@ jpIf cc = Ary2 $ \addr ->
 andWithA :: Word8 -> CPU s ()
 andWithA d8 = do
     modifyReg a (Bit..&. d8)
-    va <- readReg a
-    setFlags (As (va == 0), Off, On, Off)
+    setFlags (NA, Off, On, Off)
+    setZFlag $ readReg a
 
 and_reg :: CPURegister s Word8 -> Instruction s
 and_reg reg = Ary0 $ do
@@ -403,8 +422,8 @@ and_deref reg = Ary0 $ do
 orWithA :: Word8 -> CPU s ()
 orWithA d8 = do
     modifyReg a (Bit..|. d8)
-    va <- readReg a
-    setFlags (As (va == 0), Off, Off, Off)
+    setFlags (NA, Off, Off, Off)
+    setZFlag $ readReg a
 
 or_d8 :: Instruction s
 or_d8 = Ary1 $ \d8 -> do
@@ -421,9 +440,8 @@ or_reg reg = Ary0 $
 xorWithA :: Word8 -> CPU s ()
 xorWithA byte = do
     modifyReg a (Bit.xor byte) 
-    -- Set the flags.
-    va <- readReg a
-    setFlags (As (va == 0), Off, Off, Off)
+    setFlags (Off, Off, Off, Off)
+    setZFlag $ readReg a
 
 xor_d8 :: Instruction s
 xor_d8 = Ary1 $ \d8 -> do 
@@ -547,8 +565,8 @@ ld_HLPlus_reg reg = Ary0 $
 dec :: CPURegister s Word8 -> Instruction s
 dec reg = Ary0 $ do
     modifyReg reg (subtract 1)
-    v <- readReg reg
-    setFlags (As (v == 0), On, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setFlags (NA, On, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setZFlag $ readReg reg
     return 4
 
 dec16 :: ComboRegister -> Instruction s
@@ -565,16 +583,16 @@ decSP = Ary0 $ do
 decDeref :: ComboRegister -> Instruction s
 decDeref reg = Ary0 $ do
     derefModify reg (subtract 1)
-    v <- readComboReg reg
-    setFlags (As (v == 0), On, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setFlags (NA, On, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setZFlag $ deref reg
     return 12
 
 -- Flags: Z 0 H -
 inc :: CPURegister s Word8 -> Instruction s
 inc reg = Ary0 $ do
     modifyReg reg (+ 1)
-    v <- readReg reg
-    setFlags (As (v == 0), Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setFlags (NA, Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
+    setZFlag $ readReg reg
     return 4
 
 inc16 :: ComboRegister -> Instruction s
@@ -708,3 +726,11 @@ ei :: Instruction s
 ei = Ary0 $
     enableMasterInterrupt >>
     return 4
+
+-- SWAP : Swap the nybbles.
+swap_reg :: CPURegister s Word8 -> Instruction s
+swap_reg reg = Ary0 $ do
+    modifyReg reg swapNybbles
+    setFlags (NA, Off, Off, Off)
+    setZFlag $ readReg reg
+    return 8

@@ -6,6 +6,7 @@ module BitTwiddling (
   , to8
   , toBytes
   , toSigned
+  , swapNybbles
     ) where
 
 import Data.Word
@@ -21,6 +22,11 @@ to8 = fromIntegral
 
 toSigned :: Word8 -> Int8
 toSigned = fromIntegral
+
+swapNybbles :: Word8 -> Word8
+swapNybbles w = 
+     ((w .&. 0x0F) `shiftL` 4) +
+     ((w .&. 0xF0) `shiftR` 4)
 
 toBytes :: Word16 -> (Word8, Word8)
 toBytes w = (to8 w, to8 $ shiftR w 8)

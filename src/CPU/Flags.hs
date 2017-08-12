@@ -3,7 +3,9 @@ module CPU.Flags (
     , FlagMod(..)
     , readFlag
     , setFlag
+    , setFlagM
     , setFlags
+    , modifyFlag
     ) where
 --
 -- The f register also acts as the flags.
@@ -51,3 +53,6 @@ setFlags (z,n,h,c) =
     modifyFlag H h >>
     modifyFlag C c
 
+setFlagM :: Flag -> CPU s Bool -> CPU s ()
+setFlagM flag val = 
+    val >>= (setFlag flag)
