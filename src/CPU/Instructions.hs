@@ -41,8 +41,8 @@ opTable opcode = case opcode of
     0x90 -> Op "SUB B"          $ Unimplemented
     0xA0 -> Op "AND B"          $ Unimplemented
     0xB0 -> Op "OR B"           $ Unimplemented
-    0xC0 -> Op "RET NZ"         $ ret NZc
-    0xD0 -> Op "RET NC"         $ ret NCc
+    0xC0 -> Op "RET NZ"         $ retIf NZc
+    0xD0 -> Op "RET NC"         $ retIf NCc
     0xE0 -> Op "LDH (0x%02X),A" $ ldh_a8_reg a
     0xF0 -> Op "LDH A,(0x%02X)" $ ldh_reg_a8 a    
     0x01 -> Op "LD BC,0x%04X"   $ ld_reg_d16 BC
@@ -216,7 +216,7 @@ opTable opcode = case opcode of
     0x8B -> Op "ADC A,E"        $ Unimplemented
     0x9B -> Op "SBC A,E"        $ Unimplemented
     0xAB -> Op "XOR E"          $ xor_reg e
-    0xBB -> Op "CP E"           $ cp_reg cp
+    0xBB -> Op "CP E"           $ cp_reg e
     0xCB -> Op "PREFIX CB"      $ Unimplemented
     0xDB -> Op "NOT USED"       $ Unimplemented
     0xEB -> Op "NOT USED"       $ Unimplemented
@@ -395,7 +395,7 @@ or_reg reg = Ary0 $
 
 -- XOR: Exclusive-or the contents of A with the argument.
 -- Sets flags: Z 0 0 0
-xorWithA :: Word8 -> CPU s ())
+xorWithA :: Word8 -> CPU s ()
 xorWithA byte = do
     modifyReg a (Bit.xor byte) 
     -- Set the flags.
@@ -407,9 +407,9 @@ xor_d8 = Ary1 $ \d8 -> do
     xorWithA d8 
     return 8
 
-xor_reg :: Instruction s
+xor_reg :: CPURegister s Word8 -> Instruction s
 xor_reg reg = Ary0 $ do
-    xor =<< readReg reg
+    xorWithA =<< readReg reg
     return 4
 
 -- CPL: Complement the bits of A
@@ -574,18 +574,18 @@ incDeref reg = Ary0 $ do
 
 -- CP: Compare with A to set flags.
 -- Flags: Z 1 H C
-compare :: Word8 -> CPU s Cycles
-compare byte = do
+compareWithA :: Word8 -> CPU s Cycles
+compareWithA byte = do
     av <- readReg a
     let (result, cv) = carriedSubtract av byte 
     setFlags (As (result == 0), On, Off, As cv)
     return 8
 
 cp :: Instruction s
-cp = Ary1 $ compare
+cp = Ary1 $ compareWithA
 
 cp_reg :: CPURegister s Word8 -> Instruction s
-cp_reg reg = Ary0 $ compare =<< readReg reg 
+cp_reg reg = Ary0 $ compareWithA =<< readReg reg 
 
 -- JR: Relative jump
 -- cc is a flag condition. 
@@ -629,7 +629,7 @@ doCall a16 = do
     return 24
 
 call :: Instruction s
-call :: Ary2 $ doCall
+call = Ary2 $ doCall
 
 callIf :: FlagCondition -> Instruction s
 callIf cc = Ary2 $ \addr -> 
@@ -668,8 +668,10 @@ retIf cc = Ary0 $
 
 -- Return and enable interrupts.
 reti :: Instruction s
-reti = Ary0 $
-    enableMasterInterrupt >> ret
+reti = Ary0 $ do
+    enableMasterInterrupt 
+    doRet
+    return 16
     
 
 -- DI: Disable interrupts
