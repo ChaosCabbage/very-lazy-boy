@@ -5,7 +5,8 @@ module Main where
 import CPU
 import CPURunner
 import CPU.Environment
-import CPU.FrozenEnvironment 
+import CPU.FrozenEnvironment
+import qualified CPU.Instructions as Ops 
 import CPURunner (step)
 import CPU.Types
 import Cartridge
@@ -29,17 +30,19 @@ stepper cpuState cycles = do
     case command of
         "" -> doStepFunc runStep
         "QUIT" -> putStrLn "Byee"
-        "MEM"  -> putStrLn "Address: " >> readLn >>= printMem cpuState >> retry
+        "MEM"  -> putStrLn "Address: " >> readLn >>= printMem >> retry
         "STACK" -> putStrLn (viewStack cpuState) >> retry
         "RUN_TO" -> putStrLn "PC: " >> readLn >>= runToPc
-        "RUN_FOR" -> putStrLn "Cycles: " >> readLn >>= runForCycles 
+        "RUN_FOR" -> putStrLn "Cycles: " >> readLn >>= runForCycles
+        "STEP_OVER" -> runToNext >> retry
         "DUMP_VRAM" -> dumpVRAM cpuState >> retry
         _ -> putStrLn "Unknown command" >> retry
     
     where
         retry = stepper cpuState cycles
-        printMem cpu addr = putStrLn $ printf "[0x%02X] 0x%02X" addr (readFrzMemory addr cpu)
+        printMem addr = putStrLn $ printf "[0x%02X] 0x%02X" addr (readFrzMemory addr cpuState)
         runToPc breakpoint = doStepFunc $ runCpu $ stepWhile (testPc (/= breakpoint))
+        runToNext = runToPc (nextInstructionAddress cpuState)
         runForCycles num = doStepFunc $ runCpu $ stepWhileCycles (<= num)
         doStepFunc f =   
             let (nextState, extraCycles) = f cpuState
@@ -47,6 +50,17 @@ stepper cpuState cycles = do
 
 testPc :: (Register16 -> Bool) -> (CPU s Bool)
 testPc f = readReg pc >>= return.f
+
+nextInstructionAddress :: FrozenCPUEnvironment -> Address
+nextInstructionAddress cpu =
+    let pointer = frz_pc cpu
+        opcode = readFrzMemory pointer cpu
+        op = Ops.opTable opcode
+    in case (Ops.instruction op) of
+            (Ops.Ary0 _) -> pointer + 1
+            (Ops.Ary1 _) -> pointer + 2
+            (Ops.Ary2 _) -> pointer + 3
+            (Ops.Unimplemented) -> pointer + 1
 
 type StopCondition s = CPU s Bool
 type CycleCountedComputation s = CPU s Int

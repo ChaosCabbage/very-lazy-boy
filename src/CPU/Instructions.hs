@@ -577,8 +577,8 @@ incDeref reg = Ary0 $ do
 compareWithA :: Word8 -> CPU s Cycles
 compareWithA byte = do
     av <- readReg a
-    let (result, cv) = carriedSubtract av byte 
-    setFlags (As (result == 0), On, Off, As cv)
+    let (result, didCarry, didHalfCarry) = carriedSubtract av byte 
+    setFlags (As (result == 0), On, As didHalfCarry, As didCarry)
     return 8
 
 cp :: Instruction s
