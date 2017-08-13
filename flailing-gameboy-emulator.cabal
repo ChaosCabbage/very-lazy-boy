@@ -29,6 +29,8 @@ library
                      , CPU.Flags
                      , CPU.Arithmetic
                      , CPU.IORegisters
+                     , CPU.Reference
+                     , CPU.Pointer
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl

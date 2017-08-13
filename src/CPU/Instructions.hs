@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module CPU.Instructions (
     Instruction(..)
   , label
@@ -11,6 +13,8 @@ import CPU.Types
 import CPU.Environment
 import CPU.Flags
 import CPU.Arithmetic
+import CPU.Reference
+import CPU.Pointer
 import CPU
 import qualified Data.Bits as Bit
 import Data.Word    
@@ -37,7 +41,7 @@ opTable opcode = case opcode of
     0x50 -> Op "LD D,B"         $ ld_reg_reg d b
     0x60 -> Op "LD H,B"         $ ld_reg_reg h b
     0x70 -> Op "LD (HL),B"      $ ld_deref_reg HL b
-    0x80 -> Op "ADD A,B"        $ Unimplemented
+    0x80 -> Op "ADD A,B"        $ add_reg b
     0x90 -> Op "SUB B"          $ Unimplemented
     0xA0 -> Op "AND B"          $ and_reg b
     0xB0 -> Op "OR B"           $ or_reg b
@@ -324,58 +328,15 @@ setZFlag :: CPU s Word8 -> CPU s ()
 setZFlag =
     (setFlagM Z) . (fmap (==0)) 
 
--- Functions for loading to different destinations
-
--- Write the contents of a register into a memory address.
--- The pointer is monadic, because in some cases the pointer
--- is incremented or decremented at the same time.
-writeRegToPointer :: CPURegister s Word8 -> CPU s Address -> CPU s Cycles
-writeRegToPointer reg pointer = do
-    addr <- pointer
-    readReg reg >>= writeMemory addr
-    return 8 
-
--- Write the contents of a memory address into a register
--- See comment above about the monadic address.
-writePointerToReg :: CPURegister s Word8 -> CPU s Address -> CPU s Cycles
-writePointerToReg reg pointer =
-    pointer >>= readMemory >>= writeReg reg >> 
-    return 8
-
--- For e.g. LD (HL-) instructions.
--- Get the address pointed to by the register, then decrement the register.
-pointerMinus :: ComboRegister -> CPU s Address
-pointerMinus reg = do
-    addr <- readComboReg reg
-    modifyComboReg reg (subtract 1)
-    return addr
-
--- e.g. LD (HL+) instructions
-pointerPlus :: ComboRegister -> CPU s Address
-pointerPlus reg = do
-    addr <- readComboReg reg
-    modifyComboReg reg (+ 1)
-    return addr
-
-derefWrite :: ComboRegister -> Word8 -> CPU s ()
-derefWrite reg d8 = do
-    addr <- readComboReg reg 
-    writeMemory addr d8 
-
-deref :: ComboRegister -> CPU s Word8
-deref reg =
-    readComboReg reg >>= readMemory 
-
-derefModify :: ComboRegister -> (Word8 -> Word8) -> CPU s ()
-derefModify reg modifier =
-    (modifier <$> deref reg) >>= derefWrite reg
-
 -- Several instructions add 0xFF00 to their argument
 -- to get an address.
 highAddress :: Word8 -> Address
-highAddress w8 = 
-    0xFF00 + (fromIntegral w8 :: Word16)
+highAddress a8 = 
+    0xFF00 + (fromIntegral a8 :: Word16)
 
+highPointer :: Word8 -> CPUPointer s
+highPointer = 
+    pointer . highAddress
 
 -- NOP: Blissfully let life pass you by.
 nop :: Instruction s
@@ -411,9 +372,9 @@ and_d8 = Ary1 $ \d8 -> do
     andWithA d8
     return 8
 
-and_deref :: ComboRegister -> Instruction s
-and_deref reg = Ary0 $ do
-    deref reg >>= andWithA
+and_deref :: CPUPointer s -> Instruction s
+and_deref ptr = Ary0 $ do
+    readWord ptr >>= andWithA
     return 8
 
 -- OR: Or the contents of A with the argument
@@ -467,45 +428,46 @@ cpl = Ary0 $
 -- (particularly the fact that a ComboRegister is a different type 
 --  from the actual 16 bit registers)
 
+ld :: (CPUReference s r1 w, CPUReference a r2 w) => r1 -> r2 -> CPU s ()
+ld to from = readWord from >>= writeWord to
+
 ld_reg_d8 :: CPURegister s Word8 -> Instruction s
 ld_reg_d8 reg = Ary1 $ \d8 -> do
-    writeReg reg d8 
+    writeWord reg d8 
     return 8
 
 ld_reg_reg :: CPURegister s Word8 -> CPURegister s Word8 -> Instruction s
 ld_reg_reg to from = Ary0 $ do
-    readReg from >>= writeReg to
+    ld to from
     return 4
 
-ld_deref_d8 :: ComboRegister -> Instruction s
-ld_deref_d8 reg = Ary1 $ \w8 -> do
-    derefWrite reg w8
+ld_pointer_d8 :: CPUPointer s -> Instruction s
+ld_pointer_d8 p = Ary1 $ \w8 -> do
+    writeWord p w8
     return 12
 
-ld_deref_reg :: ComboRegister -> CPURegister s Word8 -> Instruction s
-ld_deref_reg ptr from = Ary0 $ do
-    readReg from >>= derefWrite ptr
+ld_pointer_reg :: CPUPointer s -> CPURegister s Word8 -> Instruction s
+ld_pointer_reg to from = Ary0 $ do
+    ld to from
     return 8
 
-ld_reg_deref :: CPURegister s Word8 -> ComboRegister -> Instruction s
-ld_reg_deref dest ptr = Ary0 $ do
-    deref ptr >>= writeReg dest
+ld_reg_pointer :: CPURegister s Word8 -> CPUPointer s -> Instruction s
+ld_reg_pointer to from = Ary0 $ do
+    ld to from
     return 8
 
 -- LDH (a8),reg: 
 -- Load the contents of register into address (a8 + 0xFF00)
 ldh_a8_reg :: CPURegister s Word8 -> Instruction s
 ldh_a8_reg reg = Ary1 $ \a8 -> do
-    let addr = highAddress a8
-    readReg reg >>= writeMemory addr
+    ld (highPointer a8) reg
     return 12
 
 -- LDH register,(a8): 
 -- Load the contents of (a8 + 0xFF00) into register
 ldh_reg_a8 :: CPURegister s Word8 -> Instruction s
 ldh_reg_a8 reg = Ary1 $ \a8 -> do
-    let addr = highAddress a8
-    readMemory addr >>= writeReg reg
+    ld reg (highPointer a8)
     return 12
 
 -- LD (a16),reg:
@@ -524,20 +486,21 @@ ld_reg_a16 reg = Ary2 $ \a16 -> do
 -- Dereference HL, write the value to A, and then increment HL
 ld_A_HLPlus :: Instruction s
 ld_A_HLPlus = Ary0 $
-    writePointerToReg a (pointerPlus HL)
+    ld a (pointerPlus HL)
+    return 8
 
 -- LD (C),A
 ld_highC_A :: Instruction s
 ld_highC_A = Ary0 $ do
-    addr <- highAddress <$> (readReg c)
-    readReg a >>= writeMemory addr 
+    ptr <- highPointer <$> (readReg c)
+    ld ptr a 
     return 8
 
 -- LD A,(C)
 ld_A_highC :: Instruction s
 ld_A_highC = Ary0 $ do
-    addr <- highAddress <$> (readReg c)
-    readMemory addr >>= writeReg a
+    addr <- highPointer <$> (readReg c)
+    ld a ptr
     return 8
 
 ld_reg_d16 :: ComboRegister -> Instruction s
@@ -551,12 +514,92 @@ ld_SP_d16 = Ary2 $ \d16 ->
     return 12
 
 ld_HLMinus_reg :: CPURegister s Word8 -> Instruction s
-ld_HLMinus_reg reg = Ary0 $
-    writeRegToPointer reg (pointerMinus HL)
+ld_HLMinus_reg reg = Ary0 $ do
+    ld (pointerMinus HL) reg
+    return 8
 
 ld_HLPlus_reg :: CPURegister s Word8 -> Instruction s
 ld_HLPlus_reg reg = Ary0 $
-    writeRegToPointer reg (pointerPlus HL)
+    ld (pointerPlus HL) reg
+    return 8
+
+-- ADD: Add stuff to A. Pretty obvious.
+-- Set flags Z 0 H C
+addToA :: Word8 -> CPU s ()
+addToA d8 = do
+    aValue <- readReg a
+    let (answer, didCarry, didHalfCarry) = carriedAdd aValue d8
+    writeReg a answer  
+    setFlags (As (answer == 0), Off, As didHalfCarry, As didCarry)
+
+add_reg :: CPURegister s Word8 -> Instruction s
+add_reg reg = Ary0 $ do
+    readReg reg >>= addToA
+    return 4
+    
+add_d8 :: Instruction s
+add_d8 = Ary1 $ \d8 -> do
+    addToA d8
+    return 8
+
+add_deref :: CPUPointer s -> Instruction s
+add_deref ptr = Ary0 $ do
+    readWord ptr >>= addToA
+    return 8
+
+-- ADD 16-bit
+-- Set flags: - 0 H C
+addToHL :: Word16 -> CPU s ()
+addToHL value = do
+    hlValue <- readComboReg HL
+    let (answer, didCarry, didHalfCarry) = carriedAdd hlValue value
+    writeComboReg HL answer
+    setFlags (NA, Off, As didHalfCarry, As didCarry)
+
+add_HL_16 :: ComboRegister -> Instruction s
+add_HL_16 reg = Ary0 $ do
+    readComboReg reg >>= addToHL
+    return 8
+
+add_HL_SP :: Instruction s
+add_HL_SP = Ary0 $ do
+    readReg sp >>= addToHL
+    return 8
+
+-- ADD SP,r8
+-- Add a *SIGNED* 8-bit number to the SP register.
+-- Flags: 0 0 H C
+add_SP_r8 :: Instruction s
+add_SP_r8 = Ary1 $ \r8 -> do
+    spValue <- readReg sp
+    let (answer, didCarry, didHalfCarry) = signedAdd spValue r8
+    writeReg sp answer
+    setFlags (Off, Off, As didHalfCarry, As didCarry)
+    return 16
+
+-- SUB: Subtract from A
+-- Set flags: Z 1 H C
+subtractFromA :: Word8 -> CPU s ()
+subtractFromA d8 = do
+    aValue <- readReg a
+    let (answer, didCarry, didHalfCarry) = carriedSubtract aValue d8
+    writeReg a answer
+    setFlags (As (answer == 0), On, As didHalfCarry, As didCarry)
+
+sub_reg :: CPURegister s Word8 -> Instruction s
+sub_reg reg = Ary0 $ do
+    readReg reg >>= subtractFromA
+    return 4
+
+sub_d8 :: Instruction s
+sub_d8 = Ary1 $ \d8 -> do
+    subtractFromA d8
+    return 8
+
+sub_deref :: CPUPointer s -> Instruction s
+sub_deref ptr = Ary0 $ do
+    readWord ptr >>= subtractFromA
+    return 8
 
 -- DEC: Decrease a register or memory location by 1
 -- Currently just the 8-bit registers.
@@ -569,49 +612,44 @@ dec reg = Ary0 $ do
     setZFlag $ readReg reg
     return 4
 
-dec16 :: ComboRegister -> Instruction s
-dec16 reg = Ary0 $ do
-    modifyComboReg reg (subtract 1) 
-    return 8
-
-decSP :: Instruction s
-decSP = Ary0 $ do
-    modifyReg sp (subtract 1)
+dec16 :: (CPUReference s a Word16) => a -> Instruction s
+dec16 ref = Ary0 $ do
+    modifyWord ref (subtract 1 :: Word16 -> Word16) 
     return 8
 
 -- Flags Z 1 H -
-decDeref :: ComboRegister -> Instruction s
-decDeref reg = Ary0 $ do
-    derefModify reg (subtract 1)
+decDeref :: CPUPointer s -> Instruction s
+decDeref ptr = Ary0 $ do
+    modifyWord ptr (subtract 1)
     setFlags (NA, On, Off, NA) -- half-carry is complicated, gonna ignore it right now
     setZFlag $ deref reg
     return 12
 
+-- INC 8-bit registers or memory0
 -- Flags: Z 0 H -
+increaseReference :: (CPUReference s a Word8) => a -> CPU s ()
+increaseReference ref = do
+    val <- readWord ref
+    let (answer, _, didHalfCarry) = carriedAdd val 1
+    writeWord ref answer
+    setFlags (As (answer == 0), Off, As didHalfCarry, NA)
+
 inc :: CPURegister s Word8 -> Instruction s
 inc reg = Ary0 $ do
-    modifyReg reg (+ 1)
-    setFlags (NA, Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
-    setZFlag $ readReg reg
+    increaseReference reg
     return 4
 
-inc16 :: ComboRegister -> Instruction s
-inc16 reg = Ary0 $ do
-    modifyComboReg reg (+1)
-    return 8
-
-incSP :: Instruction s
-incSP = Ary0 $ do
-    modifyReg sp (+1)
-    return 8
-
 -- Flags Z 0 H -
-incDeref :: ComboRegister -> Instruction s
-incDeref reg = Ary0 $ do
-    derefModify reg (+ 1)
-    v <- readComboReg reg
-    setFlags (As (v == 0), Off, Off, NA) -- half-carry is complicated, gonna ignore it right now
+incDeref :: CPUPointer s -> Instruction s
+incDeref ptr = Ary0 $ do
+    increaseReference ptr
     return 12
+
+-- No flags
+inc16 :: (CPUReference s a Word16) => a -> Instruction s
+inc16 reg = Ary0 $ do
+    modifyWord reg (+1)
+    return 8
 
 -- CP: Compare with A to set flags.
 -- Flags: Z 1 H C

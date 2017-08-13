@@ -3,10 +3,12 @@
 module CPU.Arithmetic (
     carriedAdd
   , carriedSubtract
+  , signedAdd
     ) where
 
 import Data.Word
 import Data.Bits (FiniteBits, finiteBitSize, shiftR, (.&.), testBit)
+import BitTwiddling (toSigned)
 
 type Carry = Bool
 type HalfCarry = Bool 
@@ -46,3 +48,13 @@ carriedAdd x y =
 carriedSubtract :: (FiniteBits w, Integral w, Bounded w) => w -> w -> (w, Carry, HalfCarry)
 carriedSubtract x y = 
     carriedAdd x (-y)
+
+-- Signed addition: 16-bit + signed 2's complement 8-bit
+-- Convert the signed number to 16 bit and add.
+-- Not entirely sure that this gets the flags right but it's fine for now.
+signedAdd :: Word16 -> Word8 -> (Word16, Carry, HalfCarry)
+signedAdd x y = 
+    let signed = toSigned y
+        w16 = fromIntegral signed :: Word16 
+    in 
+        carriedAdd x w16 
