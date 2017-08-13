@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 module CPU.Instructions (
     Instruction(..)
   , label
@@ -429,7 +428,9 @@ cpl = Ary0 $
 --  from the actual 16 bit registers)
 
 ld :: (CPUReference s r1 w, CPUReference a r2 w) => r1 -> r2 -> CPU s ()
-ld to from = readWord from >>= writeWord to
+ld to from = do 
+    w <- readWord from 
+    writeWord to w
 
 ld_reg_d8 :: CPURegister s Word8 -> Instruction s
 ld_reg_d8 reg = Ary1 $ \d8 -> do

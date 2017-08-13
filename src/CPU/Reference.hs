@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module CPU.Reference (
     CPUReference(..)
@@ -15,7 +16,7 @@ import CPU.Environment (CPURegister, ComboRegister)
 import Data.Bits (FiniteBits)
 import Data.Word (Word8, Word16)
     
-class (Num w, Bounded w, FiniteBits w, Integral w) => CPUReference s a w where
+class (Num w, Bounded w, FiniteBits w, Integral w) => CPUReference s a w | a -> w where
     readWord :: a -> CPU s w
     writeWord :: a -> w -> CPU s ()
     modifyWord :: a -> (w -> w) -> CPU s ()
