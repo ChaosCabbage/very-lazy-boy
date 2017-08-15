@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE RankNTypes #-}
 
 module CPU.Reference (
     CPUReference(..)
@@ -23,11 +24,11 @@ class (Num w, Bounded w, FiniteBits w, Integral w) => CPUReference s a w | a -> 
     modifyWord ref transform = 
         (readWord ref) >>= (writeWord ref) . transform
 
-instance CPUReference s (CPURegister s Word8) Word8 where
+instance forall s. (CPUReference s (CPURegister s Word8) Word8) where
     readWord = readReg
     writeWord = writeReg
     
-instance CPUReference s (CPURegister s Word16) Word16 where
+instance forall s. (CPUReference s (CPURegister s Word16) Word16) where
     readWord = readReg
     writeWord = writeReg
 

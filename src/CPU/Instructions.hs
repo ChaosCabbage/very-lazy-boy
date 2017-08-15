@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 module CPU.Instructions (
     Instruction(..)
   , label
@@ -39,7 +39,7 @@ opTable opcode = case opcode of
     0x40 -> Op "LD B,B"         $ ld_reg_reg b b
     0x50 -> Op "LD D,B"         $ ld_reg_reg d b
     0x60 -> Op "LD H,B"         $ ld_reg_reg h b
-    0x70 -> Op "LD (HL),B"      $ ld_deref_reg HL b
+    0x70 -> Op "LD (HL),B"      $ ld_pointer_reg hlPointer b
     0x80 -> Op "ADD A,B"        $ add_reg b
     0x90 -> Op "SUB B"          $ Unimplemented
     0xA0 -> Op "AND B"          $ and_reg b
@@ -55,7 +55,7 @@ opTable opcode = case opcode of
     0x41 -> Op "LD B,C"         $ ld_reg_reg b c
     0x51 -> Op "LD D,C"         $ ld_reg_reg d c
     0x61 -> Op "LD H,C"         $ ld_reg_reg h c
-    0x71 -> Op "LD (HL),C"      $ ld_deref_reg HL c
+    0x71 -> Op "LD (HL),C"      $ ld_pointer_reg hlPointer c
     0x81 -> Op "ADD A,C"        $ Unimplemented
     0x91 -> Op "SUB C"          $ Unimplemented
     0xA1 -> Op "AND C"          $ and_reg c
@@ -64,14 +64,14 @@ opTable opcode = case opcode of
     0xD1 -> Op "POP DE"         $ pop DE
     0xE1 -> Op "POP HL"         $ pop HL
     0xF1 -> Op "POP AF"         $ pop AF
-    0x02 -> Op "LD (BC),A"      $ ld_deref_reg BC a
-    0x12 -> Op "LD (DE),A"      $ ld_deref_reg DE a
+    0x02 -> Op "LD (BC),A"      $ ld_pointer_reg (pointerReg BC) a
+    0x12 -> Op "LD (DE),A"      $ ld_pointer_reg (pointerReg DE) a
     0x22 -> Op "LD (HL+),A"     $ ld_HLPlus_reg a
     0x32 -> Op "LD (HL-),A"     $ ld_HLMinus_reg a
     0x42 -> Op "LD B,D"         $ ld_reg_reg b d
     0x52 -> Op "LD D,D"         $ ld_reg_reg d d
     0x62 -> Op "LD H,D"         $ ld_reg_reg h d
-    0x72 -> Op "LD (HL),D"      $ ld_deref_reg HL d
+    0x72 -> Op "LD (HL),D"      $ ld_pointer_reg hlPointer d
     0x82 -> Op "ADD A,D"        $ Unimplemented
     0x92 -> Op "SUB D"          $ Unimplemented
     0xA2 -> Op "AND D"          $ and_reg d
@@ -83,11 +83,11 @@ opTable opcode = case opcode of
     0x03 -> Op "INC BC"         $ inc16 BC
     0x13 -> Op "INC DE"         $ inc16 DE
     0x23 -> Op "INC HL"         $ inc16 HL
-    0x33 -> Op "INC SP"         $ incSP
+    0x33 -> Op "INC SP"         $ inc16 sp
     0x43 -> Op "LD B,E"         $ ld_reg_reg b e
     0x53 -> Op "LD D,E"         $ ld_reg_reg d e
     0x63 -> Op "LD H,E"         $ ld_reg_reg h e
-    0x73 -> Op "LD (HL),E"      $ ld_deref_reg HL e
+    0x73 -> Op "LD (HL),E"      $ ld_pointer_reg hlPointer e
     0x83 -> Op "ADD A,E"        $ Unimplemented
     0x93 -> Op "SUB E"          $ Unimplemented
     0xA3 -> Op "AND E"          $ and_reg e
@@ -99,7 +99,7 @@ opTable opcode = case opcode of
     0x04 -> Op "INC B"          $ inc b
     0x14 -> Op "INC D"          $ inc d
     0x24 -> Op "INC H"          $ inc h
-    0x34 -> Op "INC (HL)"       $ incDeref HL
+    0x34 -> Op "INC (HL)"       $ incDeref hlPointer
     0x44 -> Op "LD B,H"         $ ld_reg_reg b h
     0x54 -> Op "LD D,H"         $ ld_reg_reg d h
     0x64 -> Op "LD H,H"         $ ld_reg_reg h h
@@ -115,11 +115,11 @@ opTable opcode = case opcode of
     0x05 -> Op "DEC B"          $ dec b
     0x15 -> Op "DEC D"          $ dec d
     0x25 -> Op "DEC H"          $ dec h
-    0x35 -> Op "DEC (HL)"       $ decDeref HL
+    0x35 -> Op "DEC (HL)"       $ decDeref hlPointer
     0x45 -> Op "LD B,L"         $ ld_reg_reg b l
     0x55 -> Op "LD D,L"         $ ld_reg_reg d l
     0x65 -> Op "LD H,L"         $ ld_reg_reg h l
-    0x75 -> Op "LD (HL),L"      $ ld_deref_reg HL l
+    0x75 -> Op "LD (HL),L"      $ ld_pointer_reg hlPointer l
     0x85 -> Op "ADD A,L"        $ Unimplemented
     0x95 -> Op "SUB L"          $ Unimplemented
     0xA5 -> Op "AND L"          $ and_reg l
@@ -131,14 +131,14 @@ opTable opcode = case opcode of
     0x06 -> Op "LD B,0x%02X"    $ ld_reg_d8 b
     0x16 -> Op "LD D,0x%02X"    $ ld_reg_d8 d
     0x26 -> Op "LD H,0x%02X"    $ ld_reg_d8 h
-    0x36 -> Op "LD (HL),0x%02X" $ ld_deref_d8 HL
-    0x46 -> Op "LD B,(HL)"      $ ld_reg_deref b HL
-    0x56 -> Op "LD D,(HL)"      $ ld_reg_deref d HL
-    0x66 -> Op "LD H,(HL)"      $ ld_reg_deref h HL
+    0x36 -> Op "LD (HL),0x%02X" $ ld_pointer_d8 hlPointer
+    0x46 -> Op "LD B,(HL)"      $ ld_reg_pointer b hlPointer
+    0x56 -> Op "LD D,(HL)"      $ ld_reg_pointer d hlPointer
+    0x66 -> Op "LD H,(HL)"      $ ld_reg_pointer h hlPointer
     0x76 -> Op "HALT"           $ Unimplemented
     0x86 -> Op "ADD A,(HL)"     $ Unimplemented
     0x96 -> Op "SUB (HL)"       $ Unimplemented
-    0xA6 -> Op "AND (HL)"       $ and_deref HL
+    0xA6 -> Op "AND (HL)"       $ and_deref hlPointer
     0xB6 -> Op "OR (HL)"        $ Unimplemented
     0xC6 -> Op "ADD A,0x%02X"   $ Unimplemented
     0xD6 -> Op "SUB 0x%02X"     $ Unimplemented
@@ -151,7 +151,7 @@ opTable opcode = case opcode of
     0x47 -> Op "LD B,A"         $ ld_reg_reg b a
     0x57 -> Op "LD D,A"         $ ld_reg_reg d a
     0x67 -> Op "LD H,A"         $ ld_reg_reg h a
-    0x77 -> Op "LD (HL),A"      $ ld_deref_reg HL a
+    0x77 -> Op "LD (HL),A"      $ ld_pointer_reg hlPointer a
     0x87 -> Op "ADD A,A"        $ Unimplemented
     0x97 -> Op "SUB A"          $ Unimplemented
     0xA7 -> Op "AND A"          $ and_reg a
@@ -192,8 +192,8 @@ opTable opcode = case opcode of
     0xD9 -> Op "RETI"           $ reti
     0xE9 -> Op "JP (HL)"        $ Unimplemented
     0xF9 -> Op "LD SP,HL"       $ Unimplemented
-    0x0A -> Op "LD A,(BC)"      $ ld_reg_deref a BC
-    0x1A -> Op "LD A,(DE)"      $ ld_reg_deref a DE
+    0x0A -> Op "LD A,(BC)"      $ ld_reg_pointer a (pointerReg BC)
+    0x1A -> Op "LD A,(DE)"      $ ld_reg_pointer a (pointerReg DE)
     0x2A -> Op "LD A,(HL+)"     $ ld_A_HLPlus
     0x3A -> Op "LD A,(HL-)"     $ Unimplemented
     0x4A -> Op "LD C,D"         $ ld_reg_reg c d
@@ -211,7 +211,7 @@ opTable opcode = case opcode of
     0x0B -> Op "DEC BC"         $ dec16 BC
     0x1B -> Op "DEC DE"         $ dec16 DE
     0x2B -> Op "DEC HL"         $ dec16 HL
-    0x3B -> Op "DEC SP"         $ decSP
+    0x3B -> Op "DEC SP"         $ dec16 sp
     0x4B -> Op "LD C,E"         $ ld_reg_reg c e
     0x5B -> Op "LD E,E"         $ ld_reg_reg e e
     0x6B -> Op "LD L,E"         $ ld_reg_reg l e
@@ -260,10 +260,10 @@ opTable opcode = case opcode of
     0x1E -> Op "LD E,0x%02X"    $ ld_reg_d8 e
     0x2E -> Op "LD L,0x%02X"    $ ld_reg_d8 l
     0x3E -> Op "LD A,0x%02X"    $ ld_reg_d8 a
-    0x4E -> Op "LD C,(HL)"      $ ld_reg_deref c HL
-    0x5E -> Op "LD E,(HL)"      $ ld_reg_deref e HL
-    0x6E -> Op "LD L,(HL)"      $ ld_reg_deref l HL
-    0x7E -> Op "LD A,(HL)"      $ ld_reg_deref a HL
+    0x4E -> Op "LD C,(HL)"      $ ld_reg_pointer c hlPointer
+    0x5E -> Op "LD E,(HL)"      $ ld_reg_pointer e hlPointer
+    0x6E -> Op "LD L,(HL)"      $ ld_reg_pointer l hlPointer
+    0x7E -> Op "LD A,(HL)"      $ ld_reg_pointer a hlPointer
     0x8E -> Op "ADC A,(HL)"     $ Unimplemented
     0x9E -> Op "SBC A,(HL)"     $ Unimplemented
     0xAE -> Op "XOR (HL)"       $ Unimplemented
@@ -336,6 +336,15 @@ highAddress a8 =
 highPointer :: Word8 -> CPUPointer s
 highPointer = 
     pointer . highAddress
+
+hlPointer :: CPUPointer s
+hlPointer = pointerReg HL
+
+hlPlus :: CPUPointer s
+hlPlus = pointerPlus HL
+
+hlMinus :: CPUPointer s
+hlMinus = pointerMinus HL
 
 -- NOP: Blissfully let life pass you by.
 nop :: Instruction s
@@ -427,10 +436,8 @@ cpl = Ary0 $
 -- (particularly the fact that a ComboRegister is a different type 
 --  from the actual 16 bit registers)
 
-ld :: (CPUReference s r1 w, CPUReference a r2 w) => r1 -> r2 -> CPU s ()
-ld to from = do 
-    w <- readWord from 
-    writeWord to w
+ld :: (CPUReference s r1 w, CPUReference s r2 w) => r1 -> r2 -> CPU s ()
+ld to from = readWord from >>= writeWord to
 
 ld_reg_d8 :: CPURegister s Word8 -> Instruction s
 ld_reg_d8 reg = Ary1 $ \d8 -> do
@@ -459,7 +466,7 @@ ld_reg_pointer to from = Ary0 $ do
 
 -- LDH (a8),reg: 
 -- Load the contents of register into address (a8 + 0xFF00)
-ldh_a8_reg :: CPURegister s Word8 -> Instruction s
+ldh_a8_reg :: forCPURegister s Word8 -> Instruction s
 ldh_a8_reg reg = Ary1 $ \a8 -> do
     ld (highPointer a8) reg
     return 12
@@ -501,7 +508,7 @@ ld_highC_A = Ary0 $ do
 ld_A_highC :: Instruction s
 ld_A_highC = Ary0 $ do
     addr <- highPointer <$> (readReg c)
-    ld a ptr
+    ld a addr
     return 8
 
 ld_reg_d16 :: ComboRegister -> Instruction s
@@ -519,7 +526,7 @@ ld_HLMinus_reg reg = Ary0 $ do
     ld (pointerMinus HL) reg
     return 8
 
-ld_HLPlus_reg :: CPURegister s Word8 -> Instruction s
+ld_HLPlus_reg :: forall s. (CPURegister s Word8 -> Instruction s)
 ld_HLPlus_reg reg = Ary0 $
     ld (pointerPlus HL) reg
     return 8
@@ -623,7 +630,7 @@ decDeref :: CPUPointer s -> Instruction s
 decDeref ptr = Ary0 $ do
     modifyWord ptr (subtract 1)
     setFlags (NA, On, Off, NA) -- half-carry is complicated, gonna ignore it right now
-    setZFlag $ deref reg
+    setZFlag $ readWord ptr
     return 12
 
 -- INC 8-bit registers or memory0
@@ -647,9 +654,9 @@ incDeref ptr = Ary0 $ do
     return 12
 
 -- No flags
-inc16 :: (CPUReference s a Word16) => a -> Instruction s
+inc16 :: forall s a. (CPUReference s a Word16) => a -> Instruction s
 inc16 reg = Ary0 $ do
-    modifyWord reg (+1)
+    (modifyWord reg (+1)) :: CPU s ()
     return 8
 
 -- CP: Compare with A to set flags.
