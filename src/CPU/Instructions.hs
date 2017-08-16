@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 module CPU.Instructions (
     Instruction(..)
   , label

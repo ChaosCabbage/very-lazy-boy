@@ -3,7 +3,6 @@
 module Main where
 
 import CPU
-import CPURunner
 import CPU.Environment
 import CPU.FrozenEnvironment
 import qualified CPU.Instructions as Ops 
@@ -14,12 +13,8 @@ import Viewers (viewCPU, viewStack)
 
 import Control.Monad (liftM)
 import Control.Monad.ST
-import Data.Array
 import Data.Word
 import Text.Printf
-import System.IO
-import Data.Bits (testBit, setBit)
-import Numeric (readHex)
 
 stepper :: FrozenCPUEnvironment -> Cycles -> IO ()
 stepper cpuState cycles = do
