@@ -7,21 +7,15 @@ module CPU
 
       , updateMachineTicks
 
-      , readReg
-      , writeReg
-      , modifyReg
+      , readReg8
+      , writeReg8
+      , readReg16
+      , writeReg16
       , readComboReg
       , writeComboReg
-      , modifyComboReg
       , readMemory
       , writeMemory
       , modifyMemory
-      
-      , fetch
-      , fetch16
-      , jumpTo
-      , pushOntoStack
-      , popFromStack
 
       , enableMasterInterrupt
       , disableMasterInterrupt
@@ -95,15 +89,18 @@ extractEnvironment = CPU $ \cpu -> return cpu
 
 ----- Registers
 
-readReg :: CPURegister s r -> CPU s r
-readReg reg = CPU $ \cpu -> readSTRef (reg cpu)
+readReg8 :: Register8 -> CPU s Word8
+readReg8 reg = CPU $ \cpu -> readSTRef (register8 reg cpu)
 
-writeReg :: CPURegister s w -> w -> CPU s ()
-writeReg reg w = CPU $ \cpu -> writeSTRef (reg cpu) w
+writeReg8 :: Register8 -> Word8 -> CPU s ()
+writeReg8 reg w = CPU $ \cpu -> writeSTRef (register8 reg cpu) w 
 
-modifyReg :: CPURegister s w -> (w -> w) -> CPU s ()
-modifyReg reg f = 
-    readReg reg >>= (writeReg reg) . f 
+readReg16 :: Register16 -> CPU s Word16
+readReg16 reg = CPU $ \cpu -> readSTRef (register16 reg cpu)
+
+writeReg16 :: Register16 -> Word16 -> CPU s ()
+writeReg16 reg w = CPU $ \cpu -> writeSTRef (register16 reg cpu) w 
+
 
 -- I feel like the interface for writing to a register,
 -- writing to a combo register, and writing to memory
@@ -113,19 +110,14 @@ modifyReg reg f =
 readComboReg :: ComboRegister -> CPU s Word16
 readComboReg reg = do
     let (high, low) = registerPair reg
-    (readReg low) `joinBytesM` (readReg high)
+    (readReg8 low) `joinBytesM` (readReg8 high)
 
 writeComboReg :: ComboRegister -> Word16 -> CPU s ()
 writeComboReg reg w = do
     let (highReg, lowReg) = registerPair reg
     let (lowByte, highByte) = toBytes w
-    writeReg lowReg lowByte
-    writeReg highReg highByte
-
-modifyComboReg :: ComboRegister -> (Word16 -> Word16) -> CPU s ()
-modifyComboReg reg f = 
-    (readComboReg reg) >>= (writeComboReg reg) . f
-
+    writeReg8 lowReg lowByte
+    writeReg8 highReg highByte
 
 ----- Memory
 --
@@ -180,7 +172,7 @@ readMemory addr = readAddressable (memoryBank addr) addr
 writeMemory :: Address -> Word8 -> CPU s ()
 writeMemory addr = writeAddressable (memoryBank addr) addr
 --
--- A lot of instructions want to modify an memory address in-place,
+-- A lot of instructions want to modify a memory address in-place,
 -- so here's a convenient function
 modifyMemory :: Address -> (Word8 -> Word8) -> CPU s ()
 modifyMemory addr f = 
@@ -197,41 +189,6 @@ disableMasterInterrupt = CPU $ \cpu -> writeSTRef (ime cpu) False
 
 isMasterInterruptEnabled :: CPU s Bool
 isMasterInterruptEnabled = CPU $ \cpu -> readSTRef (ime cpu)
-
------ Other common routines
-
-jumpTo :: Address -> CPU s ()
-jumpTo addr = writeReg pc addr
-
-incrementPC :: CPU s ()
-incrementPC = modifyReg pc (+1)
-
--- The Gameboy stack is upside down.
--- It starts at the top and moves down the addresses.
-pushOntoStack :: Word16 -> CPU s ()
-pushOntoStack word = do
-    modifyReg sp (subtract 2)
-    let (lowByte, highByte) = toBytes word
-    addr <- readReg sp
-    writeMemory (addr + 0) lowByte
-    writeMemory (addr + 1) highByte
-
-popFromStack :: CPU s Word16
-popFromStack = do
-    addr <- readReg sp
-    lowByte <- readMemory (addr + 0)
-    highByte <- readMemory (addr + 1)
-    modifyReg sp (+2)
-    return (lowByte `joinBytes` highByte)
-
-fetch :: CPU s Opcode
-fetch = do
-    addr <- readReg pc
-    incrementPC 
-    readMemory addr
-
-fetch16 :: CPU s Word16
-fetch16 = fetch `joinBytesM` fetch
 
 ----- Machine ticks
 --

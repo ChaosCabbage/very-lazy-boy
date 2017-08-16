@@ -6,6 +6,7 @@ import CPU
 import CPU.Instructions
 import CPU.Interrupts
 import CPU.Types 
+import CPU.Common (fetch)
 
 step :: CPU s Cycles
 step = do
