@@ -48,8 +48,8 @@ stepper cpuState cycles = do
             let (nextState, extraCycles) = f cpuState
             in stepper nextState (cycles + extraCycles)
 
-testPc :: (Register16 -> Bool) -> (CPU s Bool)
-testPc f = readReg pc >>= return.f
+testPc :: (Word16 -> Bool) -> (CPU s Bool)
+testPc f = readReg16 PC >>= return.f
 
 nextInstructionAddress :: FrozenCPUEnvironment -> Address
 nextInstructionAddress cpu =

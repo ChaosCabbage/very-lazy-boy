@@ -31,6 +31,7 @@ library
                      , CPU.IORegisters
                      , CPU.Reference
                      , CPU.Pointer
+                     , CPU.Common
   build-depends:       base >= 4.7 && < 5
                      , array
                      , mtl

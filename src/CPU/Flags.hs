@@ -13,24 +13,25 @@ module CPU.Flags (
 import CPU
 import CPU.Environment
 import Data.Bits
+import CPU.Reference
 
-data Flag = Z | N | H | C
+data Flag = Zf | Nf | Hf | Cf
 
 flagBit :: Flag -> Int
-flagBit f = case f of
-    Z -> 7
-    N -> 6
-    H -> 5
-    C -> 4
+flagBit flag = case flag of
+    Zf -> 7
+    Nf -> 6
+    Hf -> 5
+    Cf -> 4
 
 readFlag :: Flag -> CPU s Bool
 readFlag flag = do
-    flags <- readReg f
+    flags <- readWord F
     return $ testBit flags $ flagBit flag
 
 setFlag :: Flag -> Bool -> CPU s ()
 setFlag flag b = 
-    modifyReg f changeBit
+    modifyWord F changeBit
     where 
         op = if b then setBit else clearBit
         changeBit w = op w $ flagBit flag 
@@ -41,17 +42,17 @@ data FlagMod = On | Off | As Bool | NA
 modifyFlag :: Flag -> FlagMod -> CPU s ()
 modifyFlag flag On     = setFlag flag True 
 modifyFlag flag Off    = setFlag flag False
-modifyFlag flag (As b) = setFlag flag b
-modifyFlag flag NA = return ()
+modifyFlag flag (As bool) = setFlag flag bool
+modifyFlag _    NA = return ()
 
 -- Shortcut for setting all four flags.
 -- Flags are always in Z N H C order.
 setFlags :: (FlagMod, FlagMod, FlagMod, FlagMod) -> CPU s ()
 setFlags (z,n,h,c) = 
-    modifyFlag Z z >>
-    modifyFlag N n >>
-    modifyFlag H h >>
-    modifyFlag C c
+    modifyFlag Zf z >>
+    modifyFlag Nf n >>
+    modifyFlag Hf h >>
+    modifyFlag Cf c
 
 setFlagM :: Flag -> CPU s Bool -> CPU s ()
 setFlagM flag val = 

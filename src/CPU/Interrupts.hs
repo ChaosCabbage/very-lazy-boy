@@ -1,6 +1,6 @@
 module CPU.Interrupts (
     runInterrupts
-) where
+    ) where
 
 ----- Interrupts -----
 -- An interrupt is when the program is suddenly sent to a different place.
@@ -10,18 +10,15 @@ import CPU (
     CPU
   , readMemory
   , modifyMemory
-  , readReg
-  , writeReg 
-  , pushOntoStack 
-  , jumpTo
   , isMasterInterruptEnabled
   , disableMasterInterrupt 
   )
-import CPU.Environment (pc)
+import CPU.Environment (Register16(PC))
 import CPU.Types (Address)
+import CPU.Common (pushOntoStack, jumpTo)
+import CPU.Reference (CPUReference(..))
 import Data.Bits (setBit, clearBit, testBit)
 import Control.Conditional (ifM, (<&&>))
-
 
 data Interrupt = Interrupt Int Address
 -----------------------------------------
@@ -72,7 +69,7 @@ interruptRoutine :: Interrupt -> CPU s ()
 interruptRoutine (Interrupt bit handler) = do
     disableMasterInterrupt 
     resetInterruptRequest bit
-    readReg pc >>= pushOntoStack
+    readWord PC >>= pushOntoStack
     jumpTo handler
 
 testMemoryBit address bit  = fmap (`testBit` bit) (readMemory address) 

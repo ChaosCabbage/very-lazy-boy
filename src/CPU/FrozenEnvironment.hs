@@ -17,16 +17,16 @@ zeroMemory (minIndex, maxIndex) =
 
 data FrozenCPUEnvironment = FrozenCPUEnvironment {
     -- Registers:
-    frz_a :: Register8
-  , frz_f :: Register8
-  , frz_b :: Register8
-  , frz_c :: Register8
-  , frz_d :: Register8
-  , frz_e :: Register8
-  , frz_h :: Register8
-  , frz_l :: Register8
-  , frz_sp :: Register16
-  , frz_pc :: Register16
+    frz_a :: Word8
+  , frz_f :: Word8
+  , frz_b :: Word8
+  , frz_c :: Word8
+  , frz_d :: Word8
+  , frz_e :: Word8
+  , frz_h :: Word8
+  , frz_l :: Word8
+  , frz_sp :: Word16
+  , frz_pc :: Word16
   -- Memory banks:
   , frz_rom00 :: Array Address Word8
   , frz_rom01 :: Array Address Word8

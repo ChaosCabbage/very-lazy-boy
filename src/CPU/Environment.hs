@@ -1,11 +1,14 @@
 module CPU.Environment (
     CPUEnvironment(..)
+  , Register8(..)
+  , Register16(..)
   , ComboRegister(..)
   , MemoryBank
-  , CPURegister
   , IOPorts
   , resumeCPU
   , pauseCPU
+  , register8
+  , register16
   , registerPair
     ) where
     
@@ -26,16 +29,16 @@ type IOPorts s = CPUEnvironment s -> GBIO.IORegisters s
 -- Mutable, for use in the ST monad.
 data CPUEnvironment s = CPUEnvironment {
     -- Registers:
-    a :: STRef s Register8
-  , f :: STRef s Register8
-  , b :: STRef s Register8
-  , c :: STRef s Register8
-  , d :: STRef s Register8
-  , e :: STRef s Register8
-  , h :: STRef s Register8
-  , l :: STRef s Register8
-  , sp :: STRef s Register16
-  , pc :: STRef s Register16
+    a :: STRef s Word8
+  , f :: STRef s Word8
+  , b :: STRef s Word8
+  , c :: STRef s Word8
+  , d :: STRef s Word8
+  , e :: STRef s Word8
+  , h :: STRef s Word8
+  , l :: STRef s Word8
+  , sp :: STRef s Word16
+  , pc :: STRef s Word16
   -- Memory banks:
   , rom00 :: STUArray s Address Word8
   , rom01 :: STUArray s Address Word8
@@ -122,13 +125,31 @@ pauseCPU cpu = do
       , frz_ime = f_ime
     }
 
+data Register8 = A | F | B | C | D | E | H | L
+
+register8 :: Register8 -> (CPURegister s Word8)
+register8 A = a
+register8 F = f
+register8 B = b
+register8 C = c
+register8 D = d
+register8 E = e
+register8 H = h
+register8 L = l
+
+data Register16 = SP | PC
+
+register16 :: Register16 -> (CPURegister s Word16)
+register16 SP = sp
+register16 PC = pc
+
 -- Each pair of 8-bit registers can be accessed 
 -- as a single 16-bit register.
 data ComboRegister = AF | BC | DE | HL
 
-registerPair :: ComboRegister -> (CPURegister s Word8, CPURegister s Word8)  
-registerPair AF = (a, f)
-registerPair BC = (b, c)
-registerPair DE = (d, e)
-registerPair HL = (h, l)
+registerPair :: ComboRegister -> (Register8, Register8)  
+registerPair AF = (A, F)
+registerPair BC = (B, C)
+registerPair DE = (D, E)
+registerPair HL = (H, L)
 
