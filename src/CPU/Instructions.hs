@@ -57,7 +57,7 @@ opTable opcode = case opcode of
     0x51 -> Op "LD D,C"         $ ld_reg_reg D C
     0x61 -> Op "LD H,C"         $ ld_reg_reg H C
     0x71 -> Op "LD (HL),C"      $ ld_pointer_reg hlPointer C
-    0x81 -> Op "ADD A,C"        $ Unimplemented
+    0x81 -> Op "ADD A,C"        $ add_reg C
     0x91 -> Op "SUB C"          $ Unimplemented
     0xA1 -> Op "AND C"          $ and_reg C
     0xB1 -> Op "OR C"           $ or_reg C    
@@ -73,7 +73,7 @@ opTable opcode = case opcode of
     0x52 -> Op "LD D,D"         $ ld_reg_reg D D
     0x62 -> Op "LD H,D"         $ ld_reg_reg H D
     0x72 -> Op "LD (HL),D"      $ ld_pointer_reg hlPointer D
-    0x82 -> Op "ADD A,D"        $ Unimplemented
+    0x82 -> Op "ADD A,D"        $ add_reg D
     0x92 -> Op "SUB D"          $ Unimplemented
     0xA2 -> Op "AND D"          $ and_reg D
     0xB2 -> Op "OR D"           $ or_reg D
@@ -89,7 +89,7 @@ opTable opcode = case opcode of
     0x53 -> Op "LD D,E"         $ ld_reg_reg D E
     0x63 -> Op "LD H,E"         $ ld_reg_reg H E
     0x73 -> Op "LD (HL),E"      $ ld_pointer_reg hlPointer E
-    0x83 -> Op "ADD A,E"        $ Unimplemented
+    0x83 -> Op "ADD A,E"        $ add_reg E
     0x93 -> Op "SUB E"          $ Unimplemented
     0xA3 -> Op "AND E"          $ and_reg E
     0xB3 -> Op "OR E"           $ or_reg E
@@ -105,7 +105,7 @@ opTable opcode = case opcode of
     0x54 -> Op "LD D,H"         $ ld_reg_reg D H
     0x64 -> Op "LD H,H"         $ ld_reg_reg H H
     0x74 -> Op "LD (HL),H"      $ Unimplemented
-    0x84 -> Op "ADD A,H"        $ Unimplemented
+    0x84 -> Op "ADD A,H"        $ add_reg H
     0x94 -> Op "SUB H"          $ Unimplemented
     0xA4 -> Op "AND H"          $ Unimplemented
     0xB4 -> Op "OR H"           $ or_reg H
@@ -121,8 +121,8 @@ opTable opcode = case opcode of
     0x55 -> Op "LD D,L"         $ ld_reg_reg D L
     0x65 -> Op "LD H,L"         $ ld_reg_reg H L
     0x75 -> Op "LD (HL),L"      $ ld_pointer_reg hlPointer L
-    0x85 -> Op "ADD A,L"        $ Unimplemented
-    0x95 -> Op "SUB L"          $ Unimplemented
+    0x85 -> Op "ADD A,L"        $ add_reg L
+    0x95 -> Op "SUB L"          $ sub_reg L
     0xA5 -> Op "AND L"          $ and_reg L
     0xB5 -> Op "OR L"           $ or_reg L
     0xC5 -> Op "PUSH BC"        $ push BC
@@ -137,12 +137,12 @@ opTable opcode = case opcode of
     0x56 -> Op "LD D,(HL)"      $ ld_reg_pointer D hlPointer
     0x66 -> Op "LD H,(HL)"      $ ld_reg_pointer H hlPointer
     0x76 -> Op "HALT"           $ Unimplemented
-    0x86 -> Op "ADD A,(HL)"     $ Unimplemented
-    0x96 -> Op "SUB (HL)"       $ Unimplemented
+    0x86 -> Op "ADD A,(HL)"     $ add_deref hlPointer
+    0x96 -> Op "SUB (HL)"       $ sub_deref hlPointer
     0xA6 -> Op "AND (HL)"       $ and_deref hlPointer
-    0xB6 -> Op "OR (HL)"        $ Unimplemented
-    0xC6 -> Op "ADD A,0x%02X"   $ Unimplemented
-    0xD6 -> Op "SUB 0x%02X"     $ Unimplemented
+    0xB6 -> Op "OR (HL)"        $ or_deref hlPointer
+    0xC6 -> Op "ADD A,0x%02X"   $ add_d8
+    0xD6 -> Op "SUB 0x%02X"     $ sub_d8
     0xE6 -> Op "AND 0x%02X"     $ and_d8
     0xF6 -> Op "OR 0x%02X"      $ or_d8
     0x07 -> Op "RLCA"           $ Unimplemented
@@ -153,8 +153,8 @@ opTable opcode = case opcode of
     0x57 -> Op "LD D,A"         $ ld_reg_reg D A
     0x67 -> Op "LD H,A"         $ ld_reg_reg H A
     0x77 -> Op "LD (HL),A"      $ ld_pointer_reg hlPointer A
-    0x87 -> Op "ADD A,A"        $ Unimplemented
-    0x97 -> Op "SUB A"          $ Unimplemented
+    0x87 -> Op "ADD A,A"        $ add_reg A
+    0x97 -> Op "SUB A"          $ sub_reg A
     0xA7 -> Op "AND A"          $ and_reg A
     0xB7 -> Op "OR A"           $ or_reg A
     0xC7 -> Op "RST 00H"        $ rst 0x00
@@ -410,6 +410,11 @@ or_reg :: Register8 -> Instruction s
 or_reg reg = Ary0 $ 
     readWord reg >>= orWithA >> 
     return 4
+
+or_deref :: CPUPointer s -> Instruction s
+or_deref ptr = Ary0 $ do
+    readPtr ptr >>= orWithA
+    return 8
 
 -- XOR: Exclusive-or the contents of A with the argument.
 -- Sets flags: Z 0 0 0
